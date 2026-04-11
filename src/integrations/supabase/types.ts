@@ -14,7 +14,149 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      attachments: {
+        Row: {
+          created_at: string
+          file_type: string
+          file_url: string
+          id: string
+          note_id: string
+          transcript: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_type?: string
+          file_url: string
+          id?: string
+          note_id: string
+          transcript?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          file_type?: string
+          file_url?: string
+          id?: string
+          note_id?: string
+          transcript?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attachments_note_id_fkey"
+            columns: ["note_id"]
+            isOneToOne: false
+            referencedRelation: "notes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      note_tags: {
+        Row: {
+          id: string
+          note_id: string
+          tag_id: string
+        }
+        Insert: {
+          id?: string
+          note_id: string
+          tag_id: string
+        }
+        Update: {
+          id?: string
+          note_id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "note_tags_note_id_fkey"
+            columns: ["note_id"]
+            isOneToOne: false
+            referencedRelation: "notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "note_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notes: {
+        Row: {
+          color: string
+          content: string | null
+          created_at: string
+          id: string
+          is_archived: boolean
+          is_deleted: boolean
+          is_pinned: boolean
+          is_voice_note: boolean
+          reminder_at: string | null
+          title: string
+          updated_at: string
+          user_id: string
+          voice_duration: number | null
+        }
+        Insert: {
+          color?: string
+          content?: string | null
+          created_at?: string
+          id?: string
+          is_archived?: boolean
+          is_deleted?: boolean
+          is_pinned?: boolean
+          is_voice_note?: boolean
+          reminder_at?: string | null
+          title?: string
+          updated_at?: string
+          user_id: string
+          voice_duration?: number | null
+        }
+        Update: {
+          color?: string
+          content?: string | null
+          created_at?: string
+          id?: string
+          is_archived?: boolean
+          is_deleted?: boolean
+          is_pinned?: boolean
+          is_voice_note?: boolean
+          reminder_at?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+          voice_duration?: number | null
+        }
+        Relationships: []
+      }
+      tags: {
+        Row: {
+          created_at: string
+          id: string
+          is_ai: boolean
+          name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_ai?: boolean
+          name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_ai?: boolean
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
