@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Pin, Sparkles, Code, CheckSquare, MoreHorizontal, Mic, Archive, Trash2, PinOff, RotateCcw } from 'lucide-react';
+import { Pin, Sparkles, Code, CheckSquare, MoreHorizontal, Mic, Archive, Trash2, PinOff, RotateCcw, Bell } from 'lucide-react';
 import { useState } from 'react';
 import type { Note, NoteColor } from '@/data/mockNotes';
 import { useNotes } from '@/store/NotesContext';
@@ -16,6 +16,14 @@ const dotColorMap: Record<NoteColor, string> = {
   teal: 'bg-note-teal', default: 'bg-muted-foreground/30',
 };
 
+// Priority glow map for high-importance notes
+const priorityGlowMap: Record<NoteColor, string> = {
+  pink: 'shadow-[0_0_20px_hsl(var(--note-pink)/0.3)] animate-pulse',
+  orange: 'shadow-[0_0_15px_hsl(var(--note-orange)/0.25)]',
+  yellow: 'shadow-[0_0_10px_hsl(var(--note-yellow)/0.15)]',
+  green: '', blue: '', purple: '', teal: '', default: '',
+};
+
 interface NoteCardProps {
   note: Note;
   onClick: (note: Note) => void;
@@ -26,6 +34,7 @@ export default function NoteCard({ note, onClick, viewMode = 'default' }: NoteCa
   const { togglePin, archiveNote, deleteNote, restoreNote, permanentlyDelete } = useNotes();
   const [showMenu, setShowMenu] = useState(false);
   const timeAgo = getTimeAgo(note.updatedAt);
+  const hasReminder = !!(note as any).reminderAt;
 
   return (
     <motion.div
@@ -35,13 +44,14 @@ export default function NoteCard({ note, onClick, viewMode = 'default' }: NoteCa
       exit={{ opacity: 0, scale: 0.95 }}
       whileHover={{ y: -2 }}
       transition={{ duration: 0.2 }}
-      className={`glass rounded-xl p-4 cursor-pointer group border-l-[3px] ${colorMap[note.color]} hover:border-border/60 transition-colors relative`}
+      className={`glass rounded-xl p-4 cursor-pointer group border-l-[3px] ${colorMap[note.color]} hover:border-border/60 transition-all relative ${priorityGlowMap[note.color]}`}
     >
       <div onClick={() => onClick(note)}>
         {/* Header */}
         <div className="flex items-start justify-between mb-2">
           <h3 className="font-medium text-sm text-foreground leading-snug pr-2 line-clamp-2">{note.title}</h3>
           <div className="flex items-center gap-1 flex-shrink-0">
+            {hasReminder && <Bell className="w-3.5 h-3.5 text-note-orange" />}
             {note.isPinned && <Pin className="w-3.5 h-3.5 text-primary" />}
             {note.isVoiceNote && <Mic className="w-3.5 h-3.5 text-accent" />}
           </div>

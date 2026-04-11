@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Sparkles, Command } from 'lucide-react';
+import { Search, Sparkles, Command, Mic, MicOff, Loader2 } from 'lucide-react';
 
 interface SearchBarProps {
   onSearch: (query: string) => void;
@@ -10,6 +10,54 @@ interface SearchBarProps {
 export default function SearchBar({ onSearch, onCommandPalette }: SearchBarProps) {
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  const toggleLiveAudio = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('Speech recognition not supported in this browser.');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      setIsTranscribing(true);
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results)
+        .map((result: any) => result[0].transcript)
+        .join('');
+      setQuery(transcript);
+      onSearch(transcript);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      setIsTranscribing(false);
+    };
+
+    recognition.onerror = () => {
+      setIsListening(false);
+      setIsTranscribing(false);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
 
   return (
     <div className="relative max-w-2xl w-full">
@@ -33,6 +81,26 @@ export default function SearchBar({ onSearch, onCommandPalette }: SearchBarProps
           onBlur={() => setFocused(false)}
           className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
         />
+
+        {/* Live Audio Button */}
+        <button
+          onClick={toggleLiveAudio}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            isListening
+              ? 'bg-destructive/20 text-destructive animate-pulse'
+              : 'bg-primary/10 text-primary hover:bg-primary/20'
+          }`}
+        >
+          {isTranscribing ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : isListening ? (
+            <MicOff className="w-3.5 h-3.5" />
+          ) : (
+            <Mic className="w-3.5 h-3.5" />
+          )}
+          <span className="hidden sm:inline">{isListening ? 'Stop' : 'Voice'}</span>
+        </button>
+
         <button
           onClick={onCommandPalette}
           className="flex items-center gap-1 px-2 py-1 rounded-md bg-secondary text-muted-foreground text-xs hover:bg-secondary/80 transition-colors"
