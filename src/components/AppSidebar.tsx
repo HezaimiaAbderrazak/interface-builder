@@ -10,6 +10,7 @@ interface AppSidebarProps {
   activeView: string;
   onViewChange: (view: string) => void;
   onNewNote: () => void;
+  onOpenSettings?: () => void;
   counts?: { all: number; pinned: number; archive: number; trash: number };
 }
 
