@@ -39,14 +39,27 @@ export default function NoteCard({ note, onClick, viewMode = 'default' }: NoteCa
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: 20, rotateX: 5 }}
+      animate={{ opacity: 1, y: 0, rotateX: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      whileHover={{ y: -2 }}
-      transition={{ duration: 0.2 }}
-      className={`glass rounded-xl p-4 cursor-pointer group border-l-[3px] ${colorMap[note.color]} hover:border-border/60 transition-all relative ${priorityGlowMap[note.color]}`}
+      whileHover={{ y: -4, rotateX: -1, rotateY: 1 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
+      style={{ perspective: '800px', transformStyle: 'preserve-3d' }}
+      className={`rounded-xl p-4 cursor-pointer group border-l-[3px] ${colorMap[note.color]} transition-all relative ${priorityGlowMap[note.color]}`}
     >
-      <div onClick={() => onClick(note)}>
+      {/* 3D Glass Card with thickness */}
+      <div
+        className="absolute inset-0 rounded-xl"
+        style={{
+          background: 'hsl(222 47% 7% / 0.55)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
+          border: '1px solid hsl(0 0% 100% / 0.08)',
+          boxShadow: `0 12px 40px -8px rgba(0,0,0,0.4), 0 4px 6px -2px rgba(0,0,0,0.2), inset 0 1px 0 0 hsla(0,0%,100%,0.06), inset 0 -2px 4px 0 hsla(0,0%,0%,0.1)`,
+          transform: 'translateZ(-2px)',
+        }}
+      />
+      <div onClick={() => onClick(note)} className="relative z-10">
         {/* Header */}
         <div className="flex items-start justify-between mb-2">
           <h3 className="font-medium text-sm text-foreground leading-snug pr-2 line-clamp-2">{note.title}</h3>
@@ -70,7 +83,7 @@ export default function NoteCard({ note, onClick, viewMode = 'default' }: NoteCa
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+      <div className="flex items-center justify-between text-[10px] text-muted-foreground relative z-10">
         <span>{timeAgo}</span>
         <div className="flex items-center gap-2">
           {note.hasCode && <Code className="w-3 h-3" />}
