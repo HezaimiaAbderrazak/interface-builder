@@ -13,6 +13,7 @@ import TrashView from '@/components/TrashView';
 import TagsView from '@/components/TagsView';
 import Background3D from '@/components/Background3D';
 import MindMap from '@/components/MindMap';
+import SettingsPanel from '@/components/SettingsPanel';
 import { useNotes } from '@/store/NotesContext';
 import type { Note } from '@/data/mockNotes';
 import { Plus, Sparkles, StickyNote, Star, LogOut } from 'lucide-react';
