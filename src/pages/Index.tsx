@@ -11,9 +11,12 @@ import CreateNoteModal from '@/components/CreateNoteModal';
 import ArchiveView from '@/components/ArchiveView';
 import TrashView from '@/components/TrashView';
 import TagsView from '@/components/TagsView';
+import Background3D from '@/components/Background3D';
+import MindMap from '@/components/MindMap';
 import { useNotes } from '@/store/NotesContext';
 import type { Note } from '@/data/mockNotes';
-import { Plus, Sparkles, StickyNote, Star } from 'lucide-react';
+import { Plus, Sparkles, StickyNote, Star, LogOut } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Index() {
   const { notes } = useNotes();
@@ -26,7 +29,6 @@ export default function Index() {
   const [createOpen, setCreateOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setCommandPaletteOpen(o => !o); }
@@ -36,7 +38,6 @@ export default function Index() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  // Re-sync selected note with store
   useEffect(() => {
     if (selectedNote) {
       const updated = notes.find(n => n.id === selectedNote.id);
@@ -56,30 +57,27 @@ export default function Index() {
 
   const filteredNotes = useMemo(() => {
     let result = activeView === 'pinned' ? activeNotes.filter(n => n.isPinned) : activeNotes;
-
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       result = result.filter(n => n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q));
     }
-
     if (activeFilter === 'Pinned') result = result.filter(n => n.isPinned);
     else if (activeFilter === 'With Code') result = result.filter(n => n.hasCode);
     else if (activeFilter === 'Checklists') result = result.filter(n => n.hasChecklist);
     else if (activeFilter === 'AI Tagged') result = result.filter(n => n.tags.some(t => t.isAI));
     else if (activeFilter === 'Recent') result = [...result].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-
     return result;
   }, [activeView, activeNotes, searchQuery, activeFilter]);
 
   const pinnedNotes = filteredNotes.filter(n => n.isPinned);
   const otherNotes = filteredNotes.filter(n => !n.isPinned);
-
   const showNotesGrid = ['all', 'pinned'].includes(activeView);
-
-  const viewTitle = activeView === 'all' ? 'All Notes' : activeView === 'pinned' ? 'Pinned' : '';
+  const viewTitle = activeView === 'all' ? 'All Notes' : activeView === 'pinned' ? 'Pinned' : activeView === 'mindmap' ? 'Mind Map' : '';
 
   return (
     <div className="min-h-screen bg-background grain">
+      <Background3D />
+
       <AppSidebar
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(c => !c)}
@@ -90,7 +88,6 @@ export default function Index() {
       />
 
       <main className="relative z-10 transition-all duration-200" style={{ marginLeft: sidebarCollapsed ? 64 : 240 }}>
-        {/* Header */}
         <header className="sticky top-0 z-20 glass-strong px-6 py-4 flex items-center gap-4">
           <SearchBar onSearch={setSearchQuery} onCommandPalette={() => setCommandPaletteOpen(true)} />
           <div className="flex-1" />
@@ -99,6 +96,10 @@ export default function Index() {
             <Sparkles className="w-4 h-4" />
             <span className="hidden sm:inline">AI Chat</span>
           </button>
+          <button onClick={() => supabase.auth.signOut()}
+            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+            <LogOut className="w-4 h-4" />
+          </button>
         </header>
 
         {showNotesGrid && (
@@ -106,7 +107,6 @@ export default function Index() {
             <div className="px-6 py-3 flex items-center justify-between">
               <FilterChips active={activeFilter} onChange={setActiveFilter} />
             </div>
-
             <div className="px-6 pb-8">
               {filteredNotes.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -144,19 +144,23 @@ export default function Index() {
           </>
         )}
 
+        {activeView === 'mindmap' && (
+          <div className="px-6 py-4">
+            <MindMap notes={activeNotes} onNoteClick={setSelectedNote} />
+          </div>
+        )}
+
         {activeView === 'archive' && <ArchiveView onNoteClick={setSelectedNote} />}
         {activeView === 'trash' && <TrashView onNoteClick={setSelectedNote} />}
         {activeView === 'tags' && <TagsView onNoteClick={setSelectedNote} />}
         {activeView === 'ai-tags' && <TagsView onNoteClick={setSelectedNote} aiOnly />}
 
-        {/* FAB */}
         <button onClick={() => setCreateOpen(true)}
           className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 flex items-center justify-center hover:opacity-90 transition-opacity z-30">
           <Plus className="w-6 h-6" />
         </button>
       </main>
 
-      {/* Overlays */}
       <AnimatePresence>
         {selectedNote && <NoteEditor note={selectedNote} onClose={() => setSelectedNote(null)} />}
       </AnimatePresence>
