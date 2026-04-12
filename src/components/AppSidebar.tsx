@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   StickyNote, Sparkles, Archive, Trash2, Tag, Star,
-  ChevronLeft, ChevronRight, Plus, Settings, Zap
+  ChevronLeft, ChevronRight, Plus, Settings, Zap, Network
 } from 'lucide-react';
 
 interface AppSidebarProps {
@@ -16,6 +16,7 @@ interface AppSidebarProps {
 const navItems = [
   { id: 'all', label: 'All Notes', icon: StickyNote },
   { id: 'pinned', label: 'Pinned', icon: Star },
+  { id: 'mindmap', label: 'Mind Map', icon: Network },
   { id: 'ai-tags', label: 'AI Tags', icon: Sparkles },
   { id: 'tags', label: 'Tags', icon: Tag },
   { id: 'archive', label: 'Archive', icon: Archive },

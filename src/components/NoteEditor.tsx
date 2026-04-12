@@ -136,11 +136,18 @@ export default function NoteEditor({ note, onClose }: NoteEditorProps) {
             <AnimatePresence>
               {showColors && (
                 <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }}
-                  className="absolute bottom-full left-0 mb-2 flex items-center gap-1.5 p-2 glass-strong rounded-lg">
-                  {colorOptions.map((c) => (
-                    <button key={c.value} onClick={() => handleColorChange(c.value)}
-                      className={`w-6 h-6 rounded-full ${c.class} transition-transform ${note.color === c.value ? 'ring-2 ring-foreground ring-offset-2 ring-offset-background scale-110' : 'hover:scale-110'}`} />
-                  ))}
+                  className="absolute bottom-full left-0 mb-2 p-3 glass-strong rounded-xl min-w-[220px] z-50"
+                  style={{ boxShadow: '0 20px 50px -12px rgba(0,0,0,0.5)' }}>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Note Color</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {colorOptions.map((c) => (
+                      <button key={c.value} onClick={() => handleColorChange(c.value)}
+                        className={`relative w-10 h-10 rounded-lg transition-all hover:scale-110 flex items-center justify-center ${note.color === c.value ? 'ring-2 ring-foreground ring-offset-2 ring-offset-background scale-110' : ''}`}
+                        style={{ backgroundColor: 'hsl(var(--secondary))' }}>
+                        <div className={`w-5 h-5 rounded-full ${c.class}`} />
+                      </button>
+                    ))}
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
