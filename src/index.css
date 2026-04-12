@@ -1,11 +1,13 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  :root {
+  /* ======= OLED DEEP DARK (default) ======= */
+  :root,
+  .dark {
     --background: 222 47% 5%;
     --foreground: 210 40% 93%;
 
@@ -57,6 +59,77 @@
     --sidebar-border: 215 25% 12%;
     --sidebar-ring: 262 80% 65%;
   }
+
+  /* ======= EYE-SOFT LIGHT THEME ======= */
+  .light {
+    --background: 210 20% 98%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 262 80% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 20% 93%;
+    --secondary-foreground: 222 47% 25%;
+
+    --muted: 210 15% 90%;
+    --muted-foreground: 215 15% 45%;
+
+    --accent: 200 80% 45%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 20% 85%;
+    --input: 214 20% 88%;
+    --ring: 262 80% 55%;
+
+    --note-yellow: 45 90% 55%;
+    --note-green: 150 60% 40%;
+    --note-blue: 210 80% 50%;
+    --note-pink: 330 70% 55%;
+    --note-orange: 25 90% 50%;
+    --note-purple: 262 60% 50%;
+    --note-teal: 175 60% 40%;
+
+    --glass-bg: 0 0% 100% / 0.7;
+    --glass-border: 0 0% 0% / 0.06;
+    --glass-blur: 20px;
+
+    --sidebar-background: 210 20% 96%;
+    --sidebar-foreground: 215 15% 40%;
+    --sidebar-primary: 262 80% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 20% 90%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 214 20% 88%;
+    --sidebar-ring: 262 80% 55%;
+  }
+
+  /* ======= COLORBLIND: Protanopia/Deuteranopia ======= */
+  [data-colorblind="protanopia"] {
+    --note-green: 210 80% 55%;
+    --note-pink: 40 95% 55%;
+    --note-orange: 45 100% 50%;
+    --note-teal: 220 70% 50%;
+    --primary: 210 90% 55%;
+    --accent: 45 100% 55%;
+  }
+
+  /* ======= COLORBLIND: Tritanopia ======= */
+  [data-colorblind="tritanopia"] {
+    --note-blue: 0 70% 55%;
+    --note-teal: 350 60% 50%;
+    --note-yellow: 180 60% 50%;
+    --primary: 0 80% 55%;
+    --accent: 180 70% 50%;
+  }
 }
 
 @layer base {
@@ -66,7 +139,20 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  /* Reading Mode */
+  body.reading-mode {
+    font-family: 'Merriweather', Georgia, serif !important;
+    line-height: 1.8 !important;
+    letter-spacing: 0.01em;
+  }
+
+  body.reading-mode textarea,
+  body.reading-mode input {
+    font-family: 'Merriweather', Georgia, serif !important;
   }
 }
 
@@ -85,6 +171,11 @@
     -webkit-backdrop-filter: blur(32px);
     border: 1px solid hsl(var(--glass-border));
     box-shadow: 0 12px 40px 0 hsla(0, 0%, 0%, 0.35), inset 0 1px 0 0 hsla(0, 0%, 100%, 0.06);
+  }
+
+  .light .glass-strong {
+    background: hsl(0 0% 100% / 0.85);
+    box-shadow: 0 8px 30px 0 hsla(0, 0%, 0%, 0.08), inset 0 1px 0 0 hsla(0, 0%, 100%, 0.5);
   }
 
   .grain {
@@ -116,4 +207,36 @@
   .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
   .scrollbar-thin::-webkit-scrollbar-thumb { background: hsl(var(--muted)); border-radius: 3px; }
   .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground)); }
+
+  /* ======= PATTERN OVERLAYS for Color Blind Support ======= */
+  .pattern-overlays .note-pattern-yellow,
+  .pattern-overlays [class*="bg-note-yellow"] {
+    background-image: repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(0,0,0,0.1) 3px, rgba(0,0,0,0.1) 5px) !important;
+  }
+  .pattern-overlays .note-pattern-green,
+  .pattern-overlays [class*="bg-note-green"] {
+    background-image: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.12) 3px, rgba(0,0,0,0.12) 5px) !important;
+  }
+  .pattern-overlays .note-pattern-blue,
+  .pattern-overlays [class*="bg-note-blue"] {
+    background-image: radial-gradient(circle, rgba(0,0,0,0.12) 1px, transparent 1px) !important;
+    background-size: 6px 6px !important;
+  }
+  .pattern-overlays .note-pattern-pink,
+  .pattern-overlays [class*="bg-note-pink"] {
+    background-image: repeating-linear-gradient(-45deg, transparent, transparent 3px, rgba(0,0,0,0.1) 3px, rgba(0,0,0,0.1) 5px) !important;
+  }
+  .pattern-overlays .note-pattern-orange,
+  .pattern-overlays [class*="bg-note-orange"] {
+    background-image: repeating-linear-gradient(90deg, transparent, transparent 4px, rgba(0,0,0,0.1) 4px, rgba(0,0,0,0.1) 6px) !important;
+  }
+  .pattern-overlays .note-pattern-purple,
+  .pattern-overlays [class*="bg-note-purple"] {
+    background-image: radial-gradient(circle, rgba(0,0,0,0.15) 1.5px, transparent 1.5px) !important;
+    background-size: 8px 8px !important;
+  }
+  .pattern-overlays .note-pattern-teal,
+  .pattern-overlays [class*="bg-note-teal"] {
+    background-image: repeating-linear-gradient(135deg, transparent, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px) !important;
+  }
 }
