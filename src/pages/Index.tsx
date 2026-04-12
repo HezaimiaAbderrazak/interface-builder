@@ -86,6 +86,7 @@ export default function Index() {
         activeView={activeView}
         onViewChange={(v) => { setActiveView(v); setActiveFilter('All'); }}
         onNewNote={() => setCreateOpen(true)}
+        onOpenSettings={() => setSettingsOpen(true)}
         counts={counts}
       />
 
