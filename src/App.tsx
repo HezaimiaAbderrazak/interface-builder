@@ -5,6 +5,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NotesProvider } from "@/store/NotesContext";
+import { VisualSettingsProvider } from "@/store/VisualSettingsContext";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session } from "@supabase/supabase-js";
 import Index from "./pages/Index.tsx";
@@ -45,17 +46,19 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <NotesProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/auth" element={session ? <Navigate to="/" replace /> : <Auth />} />
-              <Route path="/" element={<ProtectedRoute session={session}><Index /></ProtectedRoute>} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </NotesProvider>
+        <VisualSettingsProvider>
+          <NotesProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/auth" element={session ? <Navigate to="/" replace /> : <Auth />} />
+                <Route path="/" element={<ProtectedRoute session={session}><Index /></ProtectedRoute>} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </NotesProvider>
+        </VisualSettingsProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

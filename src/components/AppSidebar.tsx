@@ -10,6 +10,7 @@ interface AppSidebarProps {
   activeView: string;
   onViewChange: (view: string) => void;
   onNewNote: () => void;
+  onOpenSettings?: () => void;
   counts?: { all: number; pinned: number; archive: number; trash: number };
 }
 
@@ -23,7 +24,7 @@ const navItems = [
   { id: 'trash', label: 'Trash', icon: Trash2 },
 ];
 
-export default function AppSidebar({ collapsed, onToggle, activeView, onViewChange, onNewNote, counts }: AppSidebarProps) {
+export default function AppSidebar({ collapsed, onToggle, activeView, onViewChange, onNewNote, onOpenSettings, counts }: AppSidebarProps) {
   const getCount = (id: string) => {
     if (!counts) return null;
     if (id === 'all') return counts.all;
@@ -92,7 +93,7 @@ export default function AppSidebar({ collapsed, onToggle, activeView, onViewChan
       </nav>
 
       <div className="px-3 py-3 border-t border-sidebar-border space-y-1">
-        <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors text-sm">
+        <button onClick={onOpenSettings} className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors text-sm">
           <Settings className="w-4 h-4 flex-shrink-0" />
           <AnimatePresence>
             {!collapsed && (

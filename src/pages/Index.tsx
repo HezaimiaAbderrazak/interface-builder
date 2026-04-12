@@ -13,6 +13,7 @@ import TrashView from '@/components/TrashView';
 import TagsView from '@/components/TagsView';
 import Background3D from '@/components/Background3D';
 import MindMap from '@/components/MindMap';
+import SettingsPanel from '@/components/SettingsPanel';
 import { useNotes } from '@/store/NotesContext';
 import type { Note } from '@/data/mockNotes';
 import { Plus, Sparkles, StickyNote, Star, LogOut } from 'lucide-react';
@@ -28,6 +29,7 @@ export default function Index() {
   const [chatOpen, setChatOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -84,6 +86,7 @@ export default function Index() {
         activeView={activeView}
         onViewChange={(v) => { setActiveView(v); setActiveFilter('All'); }}
         onNewNote={() => setCreateOpen(true)}
+        onOpenSettings={() => setSettingsOpen(true)}
         counts={counts}
       />
 
@@ -172,6 +175,9 @@ export default function Index() {
       </AnimatePresence>
       <AnimatePresence>
         {chatOpen && <AIChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {settingsOpen && <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />}
       </AnimatePresence>
     </div>
   );
