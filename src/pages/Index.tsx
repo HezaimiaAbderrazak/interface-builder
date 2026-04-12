@@ -176,6 +176,9 @@ export default function Index() {
       <AnimatePresence>
         {chatOpen && <AIChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />}
       </AnimatePresence>
+      <AnimatePresence>
+        {settingsOpen && <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />}
+      </AnimatePresence>
     </div>
   );
 }
