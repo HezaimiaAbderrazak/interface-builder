@@ -93,7 +93,7 @@ export default function AppSidebar({ collapsed, onToggle, activeView, onViewChan
       </nav>
 
       <div className="px-3 py-3 border-t border-sidebar-border space-y-1">
-        <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors text-sm">
+        <button onClick={onOpenSettings} className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors text-sm">
           <Settings className="w-4 h-4 flex-shrink-0" />
           <AnimatePresence>
             {!collapsed && (
