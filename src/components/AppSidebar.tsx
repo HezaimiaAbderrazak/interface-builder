@@ -24,7 +24,7 @@ const navItems = [
   { id: 'trash', label: 'Trash', icon: Trash2 },
 ];
 
-export default function AppSidebar({ collapsed, onToggle, activeView, onViewChange, onNewNote, counts }: AppSidebarProps) {
+export default function AppSidebar({ collapsed, onToggle, activeView, onViewChange, onNewNote, onOpenSettings, counts }: AppSidebarProps) {
   const getCount = (id: string) => {
     if (!counts) return null;
     if (id === 'all') return counts.all;
