@@ -10,6 +10,7 @@ export interface VisualSettings {
   readingMode: boolean;
   colorBlindMode: ColorBlindMode;
   patternOverlays: boolean;
+  highContrast: boolean;
 }
 
 const defaults: VisualSettings = {
@@ -19,6 +20,7 @@ const defaults: VisualSettings = {
   readingMode: false,
   colorBlindMode: 'none',
   patternOverlays: false,
+  highContrast: false,
 };
 
 interface VisualSettingsContextType {
@@ -60,6 +62,11 @@ export function VisualSettingsProvider({ children }: { children: ReactNode }) {
     root.setAttribute('data-colorblind', settings.colorBlindMode);
     document.body.classList.toggle('pattern-overlays', settings.patternOverlays && settings.colorBlindMode !== 'none');
   }, [settings.colorBlindMode, settings.patternOverlays]);
+
+  // Apply high contrast mode
+  useEffect(() => {
+    document.body.classList.toggle('high-contrast', settings.highContrast);
+  }, [settings.highContrast]);
 
   // Persist
   useEffect(() => {
