@@ -8,8 +8,8 @@
   /* ======= OLED DEEP DARK (default) ======= */
   :root,
   .dark {
-    --background: 222 47% 5%;
-    --foreground: 210 40% 93%;
+    --background: 222 71% 2%;
+    --foreground: 210 40% 97%;
 
     --card: 222 47% 9%;
     --card-foreground: 210 40% 93%;
@@ -62,11 +62,11 @@
 
   /* ======= EYE-SOFT LIGHT THEME ======= */
   .light {
-    --background: 210 20% 98%;
-    --foreground: 222 47% 11%;
+    --background: 0 0% 100%;
+    --foreground: 222 47% 6%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 222 47% 6%;
 
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
@@ -78,7 +78,7 @@
     --secondary-foreground: 222 47% 25%;
 
     --muted: 210 15% 90%;
-    --muted-foreground: 215 15% 45%;
+    --muted-foreground: 215 15% 35%;
 
     --accent: 200 80% 45%;
     --accent-foreground: 0 0% 100%;
