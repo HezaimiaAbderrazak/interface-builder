@@ -1,6 +1,6 @@
 import { useRef, useMemo, useState, useCallback } from 'react';
 import { Canvas, useFrame, useThree, ThreeEvent } from '@react-three/fiber';
-import { OrbitControls, Text, Float } from '@react-three/drei';
+import { OrbitControls, Text, Float, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import type { Note } from '@/data/mockNotes';
 
@@ -15,84 +15,93 @@ function NoteNode({ note, position, onClick, isSelected }: {
 }) {
   const ref = useRef<THREE.Mesh>(null!);
   const [hovered, setHovered] = useState(false);
+  const [dragPos, setDragPos] = useState<[number, number, number]>(position);
   const color = noteColorHex[note.color] || noteColorHex.default;
 
   useFrame((_, delta) => {
     if (ref.current) {
-      const s = isSelected ? 1.3 : hovered ? 1.15 : 1;
+      const s = isSelected ? 1.35 : hovered ? 1.18 : 1;
       ref.current.scale.lerp(new THREE.Vector3(s, s, s), delta * 8);
     }
   });
 
+  const currentPos = dragPos;
+
   return (
-    <Float speed={1.5} rotationIntensity={0.2} floatIntensity={0.3}>
-      <group position={position}>
+    <group position={currentPos}>
+      <Float speed={1.2} rotationIntensity={0.15} floatIntensity={0.2}>
         <mesh
           ref={ref}
           onClick={(e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); onClick(note); }}
-          onPointerOver={() => setHovered(true)}
-          onPointerOut={() => setHovered(false)}
+          onPointerOver={() => { setHovered(true); document.body.style.cursor = 'pointer'; }}
+          onPointerOut={() => { setHovered(false); document.body.style.cursor = 'auto'; }}
         >
-          <dodecahedronGeometry args={[0.5, 0]} />
+          <dodecahedronGeometry args={[0.55, 0]} />
           <meshStandardMaterial
             color={color}
             transparent
-            opacity={0.7}
+            opacity={0.85}
             emissive={color}
-            emissiveIntensity={isSelected ? 0.6 : hovered ? 0.4 : 0.2}
-            roughness={0.2}
-            metalness={0.3}
+            emissiveIntensity={isSelected ? 0.7 : hovered ? 0.5 : 0.25}
+            roughness={0.15}
+            metalness={0.35}
           />
         </mesh>
-        {/* Glow sphere */}
-        <mesh scale={1.4}>
-          <sphereGeometry args={[0.5, 16, 16]} />
-          <meshBasicMaterial color={color} transparent opacity={isSelected ? 0.12 : 0.05} />
+        {/* Glow ring */}
+        <mesh scale={1.6}>
+          <ringGeometry args={[0.45, 0.55, 32]} />
+          <meshBasicMaterial color={color} transparent opacity={isSelected ? 0.2 : 0.06} side={THREE.DoubleSide} />
         </mesh>
-        <Text
-          position={[0, -0.9, 0]}
-          fontSize={0.18}
-          color="white"
-          anchorX="center"
-          anchorY="top"
-          maxWidth={2}
+      </Float>
+      {/* Label */}
+      <Html position={[0, -1.1, 0]} center distanceFactor={8} style={{ pointerEvents: 'none' }}>
+        <div
+          style={{
+            background: 'rgba(0,0,0,0.75)',
+            backdropFilter: 'blur(8px)',
+            padding: '4px 10px',
+            borderRadius: '6px',
+            border: `1px solid ${color}40`,
+            whiteSpace: 'nowrap',
+            maxWidth: '160px',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
         >
-          {note.title.length > 25 ? note.title.slice(0, 25) + '…' : note.title}
-        </Text>
-      </group>
-    </Float>
+          <span style={{ color: '#f8fafc', fontSize: '11px', fontWeight: 600, fontFamily: 'Inter, sans-serif' }}>
+            {note.title.length > 28 ? note.title.slice(0, 28) + '…' : note.title}
+          </span>
+        </div>
+      </Html>
+    </group>
   );
 }
 
 function ConnectionLine({ start, end, color }: { start: [number, number, number]; end: [number, number, number]; color: string }) {
-  const points = useMemo(() => {
+  const geo = useMemo(() => {
     const curve = new THREE.QuadraticBezierCurve3(
       new THREE.Vector3(...start),
-      new THREE.Vector3((start[0] + end[0]) / 2, (start[1] + end[1]) / 2 + 0.5, (start[2] + end[2]) / 2),
+      new THREE.Vector3(
+        (start[0] + end[0]) / 2,
+        (start[1] + end[1]) / 2 + 0.6,
+        (start[2] + end[2]) / 2
+      ),
       new THREE.Vector3(...end)
     );
-    return curve.getPoints(20);
+    const pts = curve.getPoints(30);
+    return new THREE.BufferGeometry().setFromPoints(pts);
   }, [start, end]);
 
   return (
-    <line>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          args={[new Float32Array(points.flatMap(p => [p.x, p.y, p.z])), 3]}
-        />
-      </bufferGeometry>
-      <lineBasicMaterial color={color} transparent opacity={0.2} />
-    </line>
+    <primitive object={new THREE.Line(geo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35 }))} />
   );
 }
 
 function MindMapScene({ notes, onNoteClick, selectedId }: {
   notes: Note[]; onNoteClick: (note: Note) => void; selectedId: string | null;
 }) {
-  // Layout notes in a circle
   const positions = useMemo(() => {
-    const radius = Math.max(3, notes.length * 0.6);
+    const radius = Math.max(3.5, notes.length * 0.65);
     return notes.map((_, i) => {
       const angle = (i / notes.length) * Math.PI * 2;
       const r = radius + Math.sin(i * 1.5) * 1.5;
@@ -100,7 +109,6 @@ function MindMapScene({ notes, onNoteClick, selectedId }: {
     });
   }, [notes.length]);
 
-  // Find connections based on shared tags
   const connections = useMemo(() => {
     const conns: { from: number; to: number; color: string }[] = [];
     for (let i = 0; i < notes.length; i++) {
@@ -116,9 +124,10 @@ function MindMapScene({ notes, onNoteClick, selectedId }: {
 
   return (
     <>
-      <ambientLight intensity={0.4} />
-      <pointLight position={[10, 10, 10]} intensity={0.6} color="#8b5cf6" />
-      <pointLight position={[-10, -5, 5]} intensity={0.3} color="#06b6d4" />
+      <ambientLight intensity={0.5} />
+      <pointLight position={[10, 10, 10]} intensity={0.7} color="#8b5cf6" />
+      <pointLight position={[-10, -5, 5]} intensity={0.35} color="#06b6d4" />
+      <pointLight position={[0, -8, -8]} intensity={0.2} color="#f97316" />
 
       {connections.map((c, i) => (
         <ConnectionLine key={i} start={positions[c.from]} end={positions[c.to]} color={c.color} />
@@ -161,12 +170,17 @@ export default function MindMap({ notes, onNoteClick }: MindMapProps) {
   }
 
   return (
-    <div className="w-full h-[calc(100vh-120px)] rounded-xl overflow-hidden relative">
+    <div className="w-full h-[calc(100vh-120px)] rounded-xl overflow-hidden relative border border-border">
       <Canvas camera={{ position: [0, 3, 10], fov: 55 }} dpr={[1, 1.5]}>
         <MindMapScene notes={notes} onNoteClick={handleClick} selectedId={selectedId} />
       </Canvas>
-      <div className="absolute bottom-4 left-4 glass rounded-lg px-3 py-2 text-xs text-muted-foreground">
+      <div className="absolute bottom-4 left-4 bg-card/80 backdrop-blur-sm border border-border rounded-lg px-3 py-2 text-xs text-muted-foreground">
         🖱️ Drag to rotate • Scroll to zoom • Click a node to open
+      </div>
+      {/* Legend */}
+      <div className="absolute top-4 right-4 bg-card/80 backdrop-blur-sm border border-border rounded-lg px-3 py-2 text-xs text-muted-foreground">
+        <p className="font-semibold text-foreground mb-1">Connections</p>
+        <p>Lines link notes sharing tags</p>
       </div>
     </div>
   );

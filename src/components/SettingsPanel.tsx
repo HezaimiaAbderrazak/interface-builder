@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   X, Sun, Moon, Eye, BookOpen, Palette, RotateCcw,
-  Monitor, Glasses, CircleDot, Grip
+  Monitor, Glasses, CircleDot, Grip, Contrast
 } from 'lucide-react';
 import { useVisualSettings, type ThemeMode, type ColorBlindMode } from '@/store/VisualSettingsContext';
 
@@ -164,6 +164,13 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                 checked={settings.readingMode}
                 onChange={(v) => update('readingMode', v)}
                 icon={BookOpen}
+              />
+              <SettingToggle
+                label="High Contrast"
+                description="Removes all transparency and glassmorphism for maximum visual clarity"
+                checked={settings.highContrast}
+                onChange={(v) => update('highContrast', v)}
+                icon={Contrast}
               />
             </div>
           </section>
