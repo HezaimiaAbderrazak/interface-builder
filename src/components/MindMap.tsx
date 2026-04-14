@@ -78,7 +78,6 @@ function NoteNode({ note, position, onClick, isSelected }: {
 }
 
 function ConnectionLine({ start, end, color }: { start: [number, number, number]; end: [number, number, number]; color: string }) {
-  const ref = useRef<THREE.Line>(null!);
   const geo = useMemo(() => {
     const curve = new THREE.QuadraticBezierCurve3(
       new THREE.Vector3(...start),
@@ -90,14 +89,11 @@ function ConnectionLine({ start, end, color }: { start: [number, number, number]
       new THREE.Vector3(...end)
     );
     const pts = curve.getPoints(30);
-    const g = new THREE.BufferGeometry().setFromPoints(pts);
-    return g;
+    return new THREE.BufferGeometry().setFromPoints(pts);
   }, [start, end]);
 
   return (
-    <line ref={ref} geometry={geo}>
-      <lineBasicMaterial color={color} transparent opacity={0.35} linewidth={1} />
-    </line>
+    <primitive object={new THREE.Line(geo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35 }))} />
   );
 }
 
