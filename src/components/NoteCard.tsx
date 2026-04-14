@@ -49,20 +49,18 @@ export default function NoteCard({ note, onClick, viewMode = 'default' }: NoteCa
     >
       {/* 3D Glass Card with thickness */}
       <div
-        className="absolute inset-0 rounded-xl"
+        className="absolute inset-0 rounded-xl bg-card border border-border"
         style={{
-          background: 'hsl(222 47% 7% / 0.55)',
           backdropFilter: 'blur(24px)',
           WebkitBackdropFilter: 'blur(24px)',
-          border: '1px solid hsl(0 0% 100% / 0.08)',
-          boxShadow: `0 12px 40px -8px rgba(0,0,0,0.4), 0 4px 6px -2px rgba(0,0,0,0.2), inset 0 1px 0 0 hsla(0,0%,100%,0.06), inset 0 -2px 4px 0 hsla(0,0%,0%,0.1)`,
+          boxShadow: `0 12px 40px -8px rgba(0,0,0,0.4), 0 4px 6px -2px rgba(0,0,0,0.2), inset 0 1px 0 0 hsla(0,0%,100%,0.06)`,
           transform: 'translateZ(-2px)',
         }}
       />
       <div onClick={() => onClick(note)} className="relative z-10">
         {/* Header */}
         <div className="flex items-start justify-between mb-2">
-          <h3 className="font-medium text-sm text-foreground leading-snug pr-2 line-clamp-2">{note.title}</h3>
+          <h3 className="font-semibold text-sm text-foreground leading-snug pr-2 line-clamp-2">{note.title}</h3>
           <div className="flex items-center gap-1 flex-shrink-0">
             {hasReminder && <Bell className="w-3.5 h-3.5 text-note-orange" />}
             {note.isPinned && <Pin className="w-3.5 h-3.5 text-primary" />}
