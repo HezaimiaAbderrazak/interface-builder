@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, Sparkles, Bot, User, Loader2, Bell, FileText, Tag } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { supabase } from '@/integrations/supabase/client';
+import { chatStream } from '@/lib/api';
 import { useNotes } from '@/store/NotesContext';
 
 interface AIChatPanelProps {
@@ -28,8 +28,6 @@ export default function AIChatPanel({ open, onClose }: AIChatPanelProps) {
   const { addNote } = useNotes();
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
-
   const parseActions = (text: string): NoteAction[] => {
     const actions: NoteAction[] = [];
     const regex = /```action\n([\s\S]*?)```/g;
@@ -37,7 +35,7 @@ export default function AIChatPanel({ open, onClose }: AIChatPanelProps) {
     while ((match = regex.exec(text)) !== null) {
       try {
         actions.push(JSON.parse(match[1].trim()));
-      } catch { /* skip malformed */ }
+      } catch { }
     }
     return actions;
   };
@@ -75,18 +73,11 @@ export default function AIChatPanel({ open, onClose }: AIChatPanelProps) {
     let assistantSoFar = '';
 
     try {
-      const resp = await fetch(CHAT_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({ messages: [...messages, userMsg] }),
-      });
+      const resp = await chatStream([...messages, userMsg]);
 
       if (!resp.ok || !resp.body) {
         const errData = await resp.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to connect to AI');
+        throw new Error((errData as any).error || 'Failed to connect to AI');
       }
 
       const reader = resp.body.getReader();
@@ -130,12 +121,11 @@ export default function AIChatPanel({ open, onClose }: AIChatPanelProps) {
         }
       }
 
-      // Execute any actions found in the response
       const actions = parseActions(assistantSoFar);
       if (actions.length > 0) executeActions(actions);
 
     } catch (e: any) {
-      setMessages(prev => [...prev, { role: 'assistant', content: `❌ ${e.message || 'Something went wrong'}` }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: `Sorry, I encountered an error: ${e.message || 'Something went wrong'}` }]);
     } finally {
       setIsLoading(false);
     }
@@ -151,7 +141,6 @@ export default function AIChatPanel({ open, onClose }: AIChatPanelProps) {
       transition={{ type: 'spring', damping: 25, stiffness: 300 }}
       className="fixed right-0 top-0 h-screen w-full max-w-md glass-strong border-l border-border z-40 flex flex-col"
     >
-      {/* Header */}
       <div className="flex items-center justify-between px-5 h-14 border-b border-border">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-primary/15 flex items-center justify-center">
@@ -165,7 +154,6 @@ export default function AIChatPanel({ open, onClose }: AIChatPanelProps) {
         </button>
       </div>
 
-      {/* Welcome state */}
       {messages.length === 0 && (
         <div className="flex-1 flex flex-col items-center justify-center px-6 text-center gap-4">
           <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
@@ -196,7 +184,6 @@ export default function AIChatPanel({ open, onClose }: AIChatPanelProps) {
         </div>
       )}
 
-      {/* Messages */}
       {messages.length > 0 && (
         <div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-thin px-5 py-4 space-y-4">
           {messages.map((msg, i) => (
@@ -235,7 +222,6 @@ export default function AIChatPanel({ open, onClose }: AIChatPanelProps) {
         </div>
       )}
 
-      {/* Input */}
       <div className="px-5 py-4 border-t border-border">
         <div className="flex items-center gap-2 bg-secondary rounded-xl px-4 py-2.5">
           <input

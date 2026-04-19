@@ -17,9 +17,13 @@ import SettingsPanel from '@/components/SettingsPanel';
 import { useNotes } from '@/store/NotesContext';
 import type { Note } from '@/data/mockNotes';
 import { Plus, Sparkles, StickyNote, Star, LogOut } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { signOut } from '@/lib/auth';
 
-export default function Index() {
+interface IndexProps {
+  onSignOut: () => void;
+}
+
+export default function Index({ onSignOut }: IndexProps) {
   const { notes } = useNotes();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeView, setActiveView] = useState('all');
@@ -48,6 +52,11 @@ export default function Index() {
     }
   }, [notes]);
 
+  const handleSignOut = () => {
+    signOut();
+    onSignOut();
+  };
+
   const activeNotes = useMemo(() => notes.filter(n => !n.isArchived && !n.isDeleted), [notes]);
 
   const counts = useMemo(() => ({
@@ -74,7 +83,6 @@ export default function Index() {
   const pinnedNotes = filteredNotes.filter(n => n.isPinned);
   const otherNotes = filteredNotes.filter(n => !n.isPinned);
   const showNotesGrid = ['all', 'pinned'].includes(activeView);
-  const viewTitle = activeView === 'all' ? 'All Notes' : activeView === 'pinned' ? 'Pinned' : activeView === 'mindmap' ? 'Mind Map' : '';
 
   return (
     <div className="min-h-screen bg-background grain">
@@ -99,7 +107,7 @@ export default function Index() {
             <Sparkles className="w-4 h-4" />
             <span className="hidden sm:inline">AI Chat</span>
           </button>
-          <button onClick={() => supabase.auth.signOut()}
+          <button onClick={handleSignOut}
             className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
             <LogOut className="w-4 h-4" />
           </button>

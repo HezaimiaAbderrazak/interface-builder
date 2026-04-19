@@ -1,85 +1,110 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
-import type { Note, NoteColor, Tag } from '@/data/mockNotes';
-import { mockNotes } from '@/data/mockNotes';
+import type { Note as NoteType, NoteColor, Tag } from '@/data/mockNotes';
+import { notesApi } from '@/lib/api';
+import { toast } from 'sonner';
 
 interface NotesContextType {
-  notes: Note[];
-  addNote: (note: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>) => Note;
-  updateNote: (id: string, updates: Partial<Note>) => void;
-  deleteNote: (id: string) => void;
-  togglePin: (id: string) => void;
-  archiveNote: (id: string) => void;
-  restoreNote: (id: string) => void;
-  permanentlyDelete: (id: string) => void;
-  emptyTrash: () => void;
-  getNote: (id: string) => Note | undefined;
+  notes: NoteType[];
+  loading: boolean;
+  addNote: (note: Omit<NoteType, 'id' | 'createdAt' | 'updatedAt'>) => Promise<NoteType>;
+  updateNote: (id: string, updates: Partial<NoteType>) => Promise<void>;
+  deleteNote: (id: string) => Promise<void>;
+  togglePin: (id: string) => Promise<void>;
+  archiveNote: (id: string) => Promise<void>;
+  restoreNote: (id: string) => Promise<void>;
+  permanentlyDelete: (id: string) => Promise<void>;
+  emptyTrash: () => Promise<void>;
+  getNote: (id: string) => NoteType | undefined;
 }
 
 const NotesContext = createContext<NotesContextType | null>(null);
 
-const STORAGE_KEY = 'noteflow-notes';
-
-function loadNotes(): Note[] {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
-  } catch {}
-  return mockNotes.map(n => ({ ...n, isDeleted: false }));
-}
-
-function saveNotes(notes: Note[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+function serverNoteToLocal(n: any): NoteType {
+  return {
+    id: n.id,
+    title: n.title,
+    content: n.content || '',
+    color: (n.color as NoteColor) || 'default',
+    isPinned: n.isPinned,
+    isArchived: n.isArchived,
+    isDeleted: n.isDeleted,
+    tags: (n.tags || []).map((t: any) => ({ id: t.id, name: t.name, isAI: t.isAI })),
+    createdAt: n.createdAt,
+    updatedAt: n.updatedAt,
+    isVoiceNote: n.isVoiceNote,
+    voiceDuration: n.voiceDuration || undefined,
+  };
 }
 
 export function NotesProvider({ children }: { children: ReactNode }) {
-  const [notes, setNotes] = useState<Note[]>(loadNotes);
+  const [notes, setNotes] = useState<NoteType[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => { saveNotes(notes); }, [notes]);
+  useEffect(() => {
+    notesApi.list()
+      .then(data => setNotes(data.map(serverNoteToLocal)))
+      .catch(e => toast.error('Failed to load notes: ' + e.message))
+      .finally(() => setLoading(false));
+  }, []);
 
-  const addNote = useCallback((data: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>): Note => {
-    const now = new Date().toISOString();
-    const note: Note = {
-      ...data,
-      id: crypto.randomUUID(),
-      createdAt: now,
-      updatedAt: now,
-    };
+  const addNote = useCallback(async (data: Omit<NoteType, 'id' | 'createdAt' | 'updatedAt'>): Promise<NoteType> => {
+    const server = await notesApi.create({
+      title: data.title,
+      content: data.content,
+      color: data.color,
+      isPinned: data.isPinned,
+      isArchived: data.isArchived,
+      isDeleted: data.isDeleted,
+      isVoiceNote: data.isVoiceNote,
+      voiceDuration: data.voiceDuration ?? null,
+      tags: data.tags as any,
+    });
+    const note = serverNoteToLocal(server);
     setNotes(prev => [note, ...prev]);
     return note;
   }, []);
 
-  const updateNote = useCallback((id: string, updates: Partial<Note>) => {
-    setNotes(prev => prev.map(n => n.id === id ? { ...n, ...updates, updatedAt: new Date().toISOString() } : n));
+  const updateNote = useCallback(async (id: string, updates: Partial<NoteType>) => {
+    const server = await notesApi.update(id, {
+      ...updates,
+      tags: updates.tags as any,
+    });
+    const note = serverNoteToLocal(server);
+    setNotes(prev => prev.map(n => n.id === id ? note : n));
   }, []);
 
-  const deleteNote = useCallback((id: string) => {
-    setNotes(prev => prev.map(n => n.id === id ? { ...n, isDeleted: true, isArchived: false, updatedAt: new Date().toISOString() } : n));
-  }, []);
+  const deleteNote = useCallback(async (id: string) => {
+    await updateNote(id, { isDeleted: true, isArchived: false });
+  }, [updateNote]);
 
-  const togglePin = useCallback((id: string) => {
-    setNotes(prev => prev.map(n => n.id === id ? { ...n, isPinned: !n.isPinned, updatedAt: new Date().toISOString() } : n));
-  }, []);
+  const togglePin = useCallback(async (id: string) => {
+    const note = notes.find(n => n.id === id);
+    if (note) await updateNote(id, { isPinned: !note.isPinned });
+  }, [notes, updateNote]);
 
-  const archiveNote = useCallback((id: string) => {
-    setNotes(prev => prev.map(n => n.id === id ? { ...n, isArchived: true, isPinned: false, updatedAt: new Date().toISOString() } : n));
-  }, []);
+  const archiveNote = useCallback(async (id: string) => {
+    await updateNote(id, { isArchived: true, isPinned: false });
+  }, [updateNote]);
 
-  const restoreNote = useCallback((id: string) => {
-    setNotes(prev => prev.map(n => n.id === id ? { ...n, isArchived: false, isDeleted: false, updatedAt: new Date().toISOString() } : n));
-  }, []);
+  const restoreNote = useCallback(async (id: string) => {
+    await updateNote(id, { isArchived: false, isDeleted: false });
+  }, [updateNote]);
 
-  const permanentlyDelete = useCallback((id: string) => {
+  const permanentlyDelete = useCallback(async (id: string) => {
+    await notesApi.delete(id);
     setNotes(prev => prev.filter(n => n.id !== id));
   }, []);
 
-  const emptyTrash = useCallback(() => {
+  const emptyTrash = useCallback(async () => {
+    const trashed = notes.filter(n => n.isDeleted);
+    await Promise.all(trashed.map(n => notesApi.delete(n.id)));
     setNotes(prev => prev.filter(n => !n.isDeleted));
-  }, []);
+  }, [notes]);
 
   const getNote = useCallback((id: string) => notes.find(n => n.id === id), [notes]);
 
   return (
-    <NotesContext.Provider value={{ notes, addNote, updateNote, deleteNote, togglePin, archiveNote, restoreNote, permanentlyDelete, emptyTrash, getNote }}>
+    <NotesContext.Provider value={{ notes, loading, addNote, updateNote, deleteNote, togglePin, archiveNote, restoreNote, permanentlyDelete, emptyTrash, getNote }}>
       {children}
     </NotesContext.Provider>
   );
