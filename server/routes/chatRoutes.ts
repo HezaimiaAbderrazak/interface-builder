@@ -35,25 +35,30 @@ If it's just a conversation (not a command), respond normally without action blo
 router.post('/', async (req: AuthRequest, res) => {
   const { messages } = req.body;
 
-  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-  if (!OPENAI_API_KEY) {
-    res.status(503).json({ error: 'AI service not configured. Please add an OPENAI_API_KEY secret.' });
+  const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
+  if (!GOOGLE_API_KEY) {
+    res.status(503).json({ error: 'AI service not configured. Please add a GOOGLE_API_KEY secret.' });
     return;
   }
 
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...messages],
-        stream: true,
-      }),
-    });
+    const geminiContents = (messages as { role: string; content: string }[]).map((m) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }));
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse&key=${GOOGLE_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          contents: geminiContents,
+          generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+        }),
+      }
+    );
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -61,7 +66,7 @@ router.post('/', async (req: AuthRequest, res) => {
         return;
       }
       const t = await response.text();
-      console.error('OpenAI error:', response.status, t);
+      console.error('Gemini error:', response.status, t);
       res.status(500).json({ error: 'AI service error' });
       return;
     }
@@ -70,13 +75,40 @@ router.post('/', async (req: AuthRequest, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    response.body!.pipeTo(
-      new WritableStream({
-        write(chunk) { res.write(chunk); },
-        close() { res.end(); },
-        abort(e) { console.error('stream aborted', e); res.end(); },
-      })
-    );
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      let newline: number;
+      while ((newline = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, newline).replace(/\r$/, '');
+        buffer = buffer.slice(newline + 1);
+        if (!line.startsWith('data: ')) continue;
+        const json = line.slice(6).trim();
+        if (json === '[DONE]') { res.write('data: [DONE]\n\n'); continue; }
+        try {
+          const parsed = JSON.parse(json);
+          const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) {
+            const openaiFormat = {
+              choices: [{ delta: { content: text }, index: 0 }],
+            };
+            res.write(`data: ${JSON.stringify(openaiFormat)}\n\n`);
+          }
+          if (parsed.candidates?.[0]?.finishReason) {
+            res.write('data: [DONE]\n\n');
+          }
+        } catch {
+          // skip malformed lines
+        }
+      }
+    }
+    res.end();
   } catch (e: any) {
     console.error('chat error:', e);
     if (!res.headersSent) {
