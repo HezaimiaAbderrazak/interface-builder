@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, Mail, Lock, User, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { signIn, signUp, type User as AuthUser } from '@/lib/auth';
 import { toast } from 'sonner';
@@ -38,69 +38,96 @@ export default function Auth({ onAuth }: AuthProps) {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center relative overflow-hidden">
+    <div className="min-h-dvh bg-background flex flex-col relative overflow-hidden">
       <Background3D />
 
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9, rotateY: -5 }}
-        animate={{ opacity: 1, scale: 1, rotateY: 0 }}
-        transition={{ duration: 0.6, ease: 'easeOut' }}
-        className="relative z-10 w-full max-w-md mx-4"
-        style={{ perspective: '1200px' }}
-      >
-        <div
-          className="glass-strong rounded-2xl p-8 border border-border/40"
-          style={{
-            boxShadow: '0 25px 60px -12px rgba(0,0,0,0.5), 0 0 40px -8px hsl(262 80% 65% / 0.15), inset 0 1px 0 0 hsla(0,0%,100%,0.06)',
-            transform: 'translateZ(20px)',
-          }}
+      {/* Status bar spacer */}
+      <div style={{ height: 'env(safe-area-inset-top, 0px)' }} />
+
+      {/* Hero top section */}
+      <div className="flex-1 flex flex-col items-center justify-center px-6 pt-8 pb-4">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="flex flex-col items-center mb-8"
         >
-          <div className="flex flex-col items-center mb-8">
-            <div className="w-14 h-14 rounded-xl bg-primary flex items-center justify-center mb-3 shadow-lg shadow-primary/30">
-              <Zap className="w-7 h-7 text-primary-foreground" />
-            </div>
-            <h1 className="text-xl font-bold text-foreground">NoteFlow AI</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              {mode === 'login' ? 'Welcome back' : 'Create your account'}
-            </p>
+          <div className="w-20 h-20 rounded-3xl bg-primary flex items-center justify-center mb-4 shadow-2xl shadow-primary/40">
+            <Zap className="w-10 h-10 text-primary-foreground" />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">NoteFlow AI</h1>
+          <p className="text-sm text-muted-foreground mt-1">Your intelligent notes companion</p>
+        </motion.div>
+
+        {/* Tab switcher */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="w-full max-w-sm"
+        >
+          <div className="flex bg-secondary/60 rounded-2xl p-1 mb-6">
+            {(['login', 'signup'] as const).map((m) => (
+              <button key={m} onClick={() => setMode(m)}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                  mode === m
+                    ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/30'
+                    : 'text-muted-foreground'
+                }`}>
+                {m === 'login' ? 'Sign In' : 'Sign Up'}
+              </button>
+            ))}
           </div>
 
-          <form onSubmit={handleEmailAuth} className="space-y-4">
-            {mode === 'signup' && (
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Full name"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-secondary/50 border border-border/40 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/50 transition-colors"
-                />
-              </div>
-            )}
+          <form onSubmit={handleEmailAuth} className="space-y-3">
+            <AnimatePresence>
+              {mode === 'signup' && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Full name"
+                      className="w-full pl-11 pr-4 py-4 rounded-2xl bg-secondary/50 border border-border/40 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/60 transition-colors"
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Email address"
                 required
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-secondary/50 border border-border/40 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/50 transition-colors"
+                autoComplete="email"
+                className="w-full pl-11 pr-4 py-4 rounded-2xl bg-secondary/50 border border-border/40 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/60 transition-colors"
               />
             </div>
+
             <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Password"
                 required
-                className="w-full pl-10 pr-12 py-3 rounded-xl bg-secondary/50 border border-border/40 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/50 transition-colors"
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                className="w-full pl-11 pr-12 py-4 rounded-2xl bg-secondary/50 border border-border/40 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/60 transition-colors"
               />
               <button type="button" onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1">
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
@@ -108,22 +135,26 @@ export default function Auth({ onAuth }: AuthProps) {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
+              className="w-full py-4 rounded-2xl bg-primary text-primary-foreground font-semibold text-sm
+                         active:opacity-80 transition-opacity flex items-center justify-center gap-2
+                         shadow-xl shadow-primary/30 mt-2"
             >
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}
               {mode === 'login' ? 'Sign In' : 'Create Account'}
             </button>
           </form>
+        </motion.div>
+      </div>
 
-          <p className="text-center text-xs text-muted-foreground mt-6">
-            {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
-            <button onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
-              className="text-primary hover:underline font-medium">
-              {mode === 'login' ? 'Sign up' : 'Sign in'}
-            </button>
-          </p>
-        </div>
-      </motion.div>
+      {/* Bottom decoration */}
+      <div className="px-6 pb-8 text-center" style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom, 2rem))' }}>
+        <p className="text-xs text-muted-foreground">
+          By continuing, you agree to our{' '}
+          <span className="text-primary">Terms of Service</span>
+          {' & '}
+          <span className="text-primary">Privacy Policy</span>
+        </p>
+      </div>
     </div>
   );
 }

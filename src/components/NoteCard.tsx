@@ -115,7 +115,7 @@ export default function NoteCard({ note, onClick, viewMode = 'default' }: NoteCa
           <div className="relative">
             <button
               onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
-              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-white/10"
+              className="opacity-60 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-white/10 active:bg-white/20"
             >
               <MoreHorizontal className="w-3.5 h-3.5" />
             </button>

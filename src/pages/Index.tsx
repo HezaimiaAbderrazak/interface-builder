@@ -1,6 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { AnimatePresence } from 'framer-motion';
-import AppSidebar from '@/components/AppSidebar';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import SearchBar from '@/components/SearchBar';
 import FilterChips from '@/components/FilterChips';
 import NoteCard from '@/components/NoteCard';
@@ -16,16 +15,35 @@ import MindMap from '@/components/MindMap';
 import SettingsPanel from '@/components/SettingsPanel';
 import { useNotes } from '@/store/NotesContext';
 import type { Note } from '@/data/mockNotes';
-import { Plus, Sparkles, StickyNote, Star, LogOut } from 'lucide-react';
+import {
+  Plus, Sparkles, StickyNote, Star, LogOut,
+  Tag, Archive, Trash2, Network, Settings,
+  X, Menu, Search, Zap, ChevronRight
+} from 'lucide-react';
 import { signOut } from '@/lib/auth';
 
 interface IndexProps {
   onSignOut: () => void;
 }
 
+const bottomNavItems = [
+  { id: 'all',    label: 'Notes',  icon: StickyNote },
+  { id: 'pinned', label: 'Pinned', icon: Star },
+  { id: 'ai',     label: 'AI',     icon: Sparkles },
+  { id: 'tags',   label: 'Tags',   icon: Tag },
+  { id: 'more',   label: 'More',   icon: Menu },
+];
+
+const moreMenuItems = [
+  { id: 'mindmap', label: 'Mind Map',  icon: Network },
+  { id: 'archive', label: 'Archive',   icon: Archive },
+  { id: 'trash',   label: 'Trash',     icon: Trash2 },
+  { id: 'settings',label: 'Settings',  icon: Settings },
+];
+
 export default function Index({ onSignOut }: IndexProps) {
   const { notes } = useNotes();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [activeTab, setActiveTab] = useState('all');
   const [activeView, setActiveView] = useState('all');
   const [activeFilter, setActiveFilter] = useState('All');
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
@@ -34,6 +52,8 @@ export default function Index({ onSignOut }: IndexProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [showMoreDrawer, setShowMoreDrawer] = useState(false);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -52,13 +72,24 @@ export default function Index({ onSignOut }: IndexProps) {
     }
   }, [notes]);
 
-  const handleSignOut = () => {
-    signOut();
-    onSignOut();
+  const handleSignOut = () => { signOut(); onSignOut(); };
+
+  const handleTabChange = (id: string) => {
+    if (id === 'ai') { setChatOpen(true); return; }
+    if (id === 'more') { setShowMoreDrawer(true); return; }
+    setActiveTab(id);
+    setActiveView(id);
+    setActiveFilter('All');
+  };
+
+  const handleMoreItem = (id: string) => {
+    setShowMoreDrawer(false);
+    if (id === 'settings') { setSettingsOpen(true); return; }
+    setActiveTab('more-' + id);
+    setActiveView(id);
   };
 
   const activeNotes = useMemo(() => notes.filter(n => !n.isArchived && !n.isDeleted), [notes]);
-
   const counts = useMemo(() => ({
     all: activeNotes.length,
     pinned: activeNotes.filter(n => n.isPinned).length,
@@ -70,7 +101,7 @@ export default function Index({ onSignOut }: IndexProps) {
     let result = activeView === 'pinned' ? activeNotes.filter(n => n.isPinned) : activeNotes;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(n => n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q));
+      result = result.filter(n => n.title.toLowerCase().includes(q) || (n.content || '').toLowerCase().includes(q));
     }
     if (activeFilter === 'Pinned') result = result.filter(n => n.isPinned);
     else if (activeFilter === 'With Code') result = result.filter(n => n.hasCode);
@@ -84,70 +115,108 @@ export default function Index({ onSignOut }: IndexProps) {
   const otherNotes = filteredNotes.filter(n => !n.isPinned);
   const showNotesGrid = ['all', 'pinned'].includes(activeView);
 
+  const getPageTitle = () => {
+    if (activeView === 'all') return 'My Notes';
+    if (activeView === 'pinned') return 'Pinned';
+    if (activeView === 'mindmap') return 'Mind Map';
+    if (activeView === 'archive') return 'Archive';
+    if (activeView === 'trash') return 'Trash';
+    if (activeView === 'tags') return 'Tags';
+    if (activeView === 'ai-tags') return 'AI Tags';
+    return 'NoteFlow AI';
+  };
+
   return (
-    <div className="min-h-screen bg-background grain">
+    <div className="mobile-app-root">
       <Background3D />
 
-      <AppSidebar
-        collapsed={sidebarCollapsed}
-        onToggle={() => setSidebarCollapsed(c => !c)}
-        activeView={activeView}
-        onViewChange={(v) => { setActiveView(v); setActiveFilter('All'); }}
-        onNewNote={() => setCreateOpen(true)}
-        onOpenSettings={() => setSettingsOpen(true)}
-        counts={counts}
-      />
+      {/* Mobile Status Bar Spacer */}
+      <div className="status-bar-spacer" />
 
-      <main className="relative z-10 transition-all duration-200" style={{ marginLeft: sidebarCollapsed ? 64 : 240 }}>
-        <header className="sticky top-0 z-20 glass-strong px-6 py-4 flex items-center gap-4">
-          <SearchBar onSearch={setSearchQuery} onCommandPalette={() => setCommandPaletteOpen(true)} />
-          <div className="flex-1" />
-          <button onClick={() => setChatOpen(true)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 transition-colors">
-            <Sparkles className="w-4 h-4" />
-            <span className="hidden sm:inline">AI Chat</span>
-          </button>
+      {/* Header */}
+      <header className="mobile-header glass-strong">
+        <div className="flex items-center gap-3 flex-1">
+          <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
+            <Zap className="w-4 h-4 text-primary-foreground" />
+          </div>
+          <AnimatePresence mode="wait">
+            {showSearch ? (
+              <motion.div key="search" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="flex-1">
+                <SearchBar onSearch={setSearchQuery} onCommandPalette={() => setCommandPaletteOpen(true)} autoFocus />
+              </motion.div>
+            ) : (
+              <motion.h1 key="title" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-base font-semibold text-foreground">
+                {getPageTitle()}
+              </motion.h1>
+            )}
+          </AnimatePresence>
+        </div>
+        <div className="flex items-center gap-1">
+          {showSearch ? (
+            <button onClick={() => { setShowSearch(false); setSearchQuery(''); }}
+              className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          ) : (
+            <button onClick={() => setShowSearch(true)}
+              className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors">
+              <Search className="w-5 h-5" />
+            </button>
+          )}
           <button onClick={handleSignOut}
-            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
-            <LogOut className="w-4 h-4" />
+            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors">
+            <LogOut className="w-5 h-5" />
           </button>
-        </header>
+        </div>
+      </header>
 
+      {/* Main Content */}
+      <main className="mobile-content">
         {showNotesGrid && (
           <>
-            <div className="px-6 py-3 flex items-center justify-between">
+            <div className="px-4 pt-3 pb-2">
               <FilterChips active={activeFilter} onChange={setActiveFilter} />
             </div>
-            <div className="px-6 pb-8">
+            <div className="px-4 pb-28">
               {filteredNotes.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center">
-                  {activeView === 'pinned' ? <Star className="w-12 h-12 text-muted-foreground/30 mb-4" /> : <StickyNote className="w-12 h-12 text-muted-foreground/30 mb-4" />}
-                  <p className="text-sm text-muted-foreground">
-                    {searchQuery ? 'No notes match your search' : activeView === 'pinned' ? 'No pinned notes yet' : 'No notes yet'}
+                  {activeView === 'pinned'
+                    ? <Star className="w-16 h-16 text-muted-foreground/20 mb-4" />
+                    : <StickyNote className="w-16 h-16 text-muted-foreground/20 mb-4" />}
+                  <p className="text-base font-medium text-foreground/70 mb-1">
+                    {searchQuery ? 'No results found' : activeView === 'pinned' ? 'No pinned notes' : 'No notes yet'}
                   </p>
-                  <button onClick={() => setCreateOpen(true)} className="mt-4 flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity">
-                    <Plus className="w-4 h-4" /> Create your first note
-                  </button>
+                  <p className="text-sm text-muted-foreground mb-5">
+                    {searchQuery ? 'Try a different search term' : 'Tap + to create your first note'}
+                  </p>
+                  {!searchQuery && (
+                    <button onClick={() => setCreateOpen(true)}
+                      className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-primary text-primary-foreground text-sm font-semibold shadow-lg shadow-primary/30 active:opacity-80 transition-opacity">
+                      <Plus className="w-4 h-4" /> New Note
+                    </button>
+                  )}
                 </div>
               ) : (
                 <>
                   {pinnedNotes.length > 0 && activeView !== 'pinned' && (
-                    <>
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Pinned</p>
-                      <div className="masonry mb-6">
+                    <div className="mb-4">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2 px-1">Pinned</p>
+                      <div className="mobile-masonry">
                         {pinnedNotes.map(note => <NoteCard key={note.id} note={note} onClick={setSelectedNote} />)}
                       </div>
-                    </>
+                    </div>
                   )}
                   {(activeView === 'pinned' ? pinnedNotes : otherNotes).length > 0 && (
-                    <>
+                    <div>
                       {pinnedNotes.length > 0 && activeView !== 'pinned' && (
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Others</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2 px-1">Others</p>
                       )}
-                      <div className="masonry">
-                        {(activeView === 'pinned' ? pinnedNotes : otherNotes).map(note => <NoteCard key={note.id} note={note} onClick={setSelectedNote} />)}
+                      <div className="mobile-masonry">
+                        {(activeView === 'pinned' ? pinnedNotes : otherNotes).map(note =>
+                          <NoteCard key={note.id} note={note} onClick={setSelectedNote} />
+                        )}
                       </div>
-                    </>
+                    </div>
                   )}
                 </>
               )}
@@ -156,22 +225,101 @@ export default function Index({ onSignOut }: IndexProps) {
         )}
 
         {activeView === 'mindmap' && (
-          <div className="px-6 py-4">
+          <div className="px-4 py-4 pb-28">
             <MindMap notes={activeNotes} onNoteClick={setSelectedNote} />
           </div>
         )}
-
-        {activeView === 'archive' && <ArchiveView onNoteClick={setSelectedNote} />}
-        {activeView === 'trash' && <TrashView onNoteClick={setSelectedNote} />}
-        {activeView === 'tags' && <TagsView onNoteClick={setSelectedNote} />}
-        {activeView === 'ai-tags' && <TagsView onNoteClick={setSelectedNote} aiOnly />}
-
-        <button onClick={() => setCreateOpen(true)}
-          className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 flex items-center justify-center hover:opacity-90 transition-opacity z-30">
-          <Plus className="w-6 h-6" />
-        </button>
+        {activeView === 'archive' && <div className="pb-28"><ArchiveView onNoteClick={setSelectedNote} /></div>}
+        {activeView === 'trash' && <div className="pb-28"><TrashView onNoteClick={setSelectedNote} /></div>}
+        {activeView === 'tags' && <div className="pb-28"><TagsView onNoteClick={setSelectedNote} /></div>}
+        {activeView === 'ai-tags' && <div className="pb-28"><TagsView onNoteClick={setSelectedNote} aiOnly /></div>}
       </main>
 
+      {/* FAB */}
+      {(showNotesGrid || activeView === 'mindmap') && (
+        <button onClick={() => setCreateOpen(true)}
+          className="fab-button">
+          <Plus className="w-7 h-7" />
+        </button>
+      )}
+
+      {/* Bottom Navigation */}
+      <nav className="bottom-nav glass-strong">
+        {bottomNavItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = activeTab === item.id ||
+            (item.id === 'more' && ['more-mindmap','more-archive','more-trash'].includes(activeTab));
+          const count = item.id === 'all' ? counts.all : item.id === 'pinned' ? counts.pinned : null;
+
+          return (
+            <button key={item.id} onClick={() => handleTabChange(item.id)}
+              className={`bottom-nav-item ${isActive ? 'active' : ''}`}>
+              <div className="relative">
+                <Icon className="w-6 h-6" />
+                {count !== null && count > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 bg-primary text-primary-foreground text-[9px] font-bold rounded-full flex items-center justify-center px-1">
+                    {count > 99 ? '99+' : count}
+                  </span>
+                )}
+                {item.id === 'ai' && (
+                  <span className="absolute -top-1.5 -right-1.5 w-2 h-2 bg-accent rounded-full" />
+                )}
+              </div>
+              <span className="bottom-nav-label">{item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* More Drawer */}
+      <AnimatePresence>
+        {showMoreDrawer && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm"
+              onClick={() => setShowMoreDrawer(false)} />
+            <motion.div
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="fixed bottom-0 left-0 right-0 z-50 glass-strong rounded-t-3xl pb-safe"
+            >
+              <div className="w-10 h-1 bg-muted-foreground/30 rounded-full mx-auto mt-3 mb-4" />
+              <div className="px-4 pb-6">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 px-2">More</p>
+                {moreMenuItems.map((item) => {
+                  const Icon = item.icon;
+                  const count = item.id === 'archive' ? counts.archive : item.id === 'trash' ? counts.trash : null;
+                  return (
+                    <button key={item.id} onClick={() => handleMoreItem(item.id)}
+                      className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl hover:bg-secondary/60 active:bg-secondary transition-colors mb-1">
+                      <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
+                        <Icon className="w-5 h-5 text-foreground" />
+                      </div>
+                      <span className="flex-1 text-left text-sm font-medium text-foreground">{item.label}</span>
+                      {count !== null && count > 0 && (
+                        <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">{count}</span>
+                      )}
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                  );
+                })}
+
+                <div className="mt-2 pt-3 border-t border-border/40">
+                  <button onClick={() => { setShowMoreDrawer(false); handleSignOut(); }}
+                    className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl hover:bg-destructive/10 active:bg-destructive/10 transition-colors">
+                    <div className="w-10 h-10 rounded-xl bg-destructive/15 flex items-center justify-center">
+                      <LogOut className="w-5 h-5 text-destructive" />
+                    </div>
+                    <span className="flex-1 text-left text-sm font-medium text-destructive">Sign Out</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Modals */}
       <AnimatePresence>
         {selectedNote && <NoteEditor note={selectedNote} onClose={() => setSelectedNote(null)} />}
       </AnimatePresence>
