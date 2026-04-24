@@ -58,7 +58,9 @@ router.post('/', async (req: AuthRequest, res) => {
   }
 
   const controller = new AbortController();
-  req.on('close', () => controller.abort());
+  res.on('close', () => {
+    if (!res.writableEnded) controller.abort();
+  });
 
   try {
     const geminiContents = (messages as { role: string; content: string }[])
