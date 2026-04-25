@@ -5,7 +5,7 @@ import {
   History, Plus, Trash2,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { chatStream, chatApi, type ChatConversationSummary } from '@/lib/api';
+import { chatStream, chatApi, aiApi, type ChatConversationSummary } from '@/lib/api';
 import { useNotes } from '@/store/NotesContext';
 import { toast } from 'sonner';
 
@@ -32,7 +32,7 @@ export default function AIChatPanel({ open, onClose }: AIChatPanelProps) {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ChatConversationSummary[]>([]);
   const [showHistory, setShowHistory] = useState(false);
-  const { addNote } = useNotes();
+  const { addNote, updateNote, notes } = useNotes();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const refreshConversations = useCallback(async () => {
@@ -86,23 +86,68 @@ export default function AIChatPanel({ open, onClose }: AIChatPanelProps) {
     return actions;
   };
 
-  const executeActions = useCallback((actions: NoteAction[]) => {
+  const executeActions = useCallback(async (actions: NoteAction[]) => {
     for (const action of actions) {
       if (action.type === 'create_note') {
-        addNote({
-          title: action.title || 'AI Note',
-          content: action.content || '',
-          color: (action.color as any) || 'default',
-          isPinned: false,
-          isArchived: false,
-          isDeleted: false,
-          tags: [],
-          isVoiceNote: false,
-        });
-        toast.success(`Created: ${action.title || 'AI Note'}`);
+        try {
+          await addNote({
+            title: action.title || 'AI Note',
+            content: action.content || '',
+            color: (action.color as any) || 'default',
+            isPinned: false,
+            isArchived: false,
+            isDeleted: false,
+            tags: [],
+            isVoiceNote: false,
+          });
+          toast.success(`✅ Created note: "${action.title || 'AI Note'}"`);
+        } catch (e: any) {
+          toast.error('Failed to create note: ' + e.message);
+        }
+      } else if (action.type === 'search') {
+        if (!action.query) continue;
+        try {
+          const { noteIds, explanation } = await aiApi.search(action.query);
+          if (noteIds.length === 0) {
+            toast.info('No matching notes found for: ' + action.query);
+          } else {
+            const found = notes.filter(n => noteIds.includes(n.id));
+            const titles = found.map(n => `"${n.title || 'Untitled'}"`).join(', ');
+            toast.success(`🔍 Found ${noteIds.length} note(s): ${titles}`);
+          }
+        } catch (e: any) {
+          toast.error('Search failed: ' + e.message);
+        }
+      } else if (action.type === 'set_reminder') {
+        if (!action.reminder_at) continue;
+        try {
+          if (action.query) {
+            const { noteIds } = await aiApi.search(action.query);
+            if (noteIds.length > 0) {
+              await updateNote(noteIds[0], { reminderAt: action.reminder_at } as any);
+              const note = notes.find(n => n.id === noteIds[0]);
+              toast.success(`🔔 Reminder set for "${note?.title || 'note'}" at ${new Date(action.reminder_at).toLocaleString()}`);
+            } else {
+              const newNote = await addNote({
+                title: action.query || 'Reminder',
+                content: '',
+                color: 'default',
+                isPinned: false,
+                isArchived: false,
+                isDeleted: false,
+                tags: [],
+                isVoiceNote: false,
+              });
+              await updateNote(newNote.id, { reminderAt: action.reminder_at } as any);
+              toast.success(`🔔 Created note with reminder at ${new Date(action.reminder_at).toLocaleString()}`);
+            }
+          }
+        } catch (e: any) {
+          toast.error('Failed to set reminder: ' + e.message);
+        }
       }
     }
-  }, [addNote]);
+  }, [addNote, updateNote, notes]);
 
   const cleanResponse = (text: string): string => {
     return text.replace(/```action\n[\s\S]*?```/g, '').trim();

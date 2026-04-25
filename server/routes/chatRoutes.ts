@@ -4,7 +4,7 @@ import type { AuthRequest } from '../auth.js';
 import { db } from '../db.js';
 import { chatConversations, chatMessages } from '../../shared/schema.js';
 import { and, asc, desc, eq } from 'drizzle-orm';
-import { geminiStream, GeminiError } from '../lib/gemini.js';
+import { groqStream, GroqError } from '../lib/groq.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -133,7 +133,7 @@ router.post('/', async (req: AuthRequest, res) => {
   }
 
   try {
-    const stream = await geminiStream(messages, {
+    const stream = await groqStream(messages, {
       systemInstruction: SYSTEM_PROMPT,
       temperature: 0.7,
       maxOutputTokens: 1024,
@@ -180,18 +180,12 @@ router.post('/', async (req: AuthRequest, res) => {
 
         try {
           const parsed = JSON.parse(json);
-          const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+          const text = parsed.choices?.[0]?.delta?.content;
           if (text) {
             assistantText += text;
-            const chunk = { choices: [{ delta: { content: text }, index: 0 }] };
-            res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+            res.write(`data: ${JSON.stringify(parsed)}\n\n`);
           }
-          if (parsed.candidates?.[0]?.finishReason) sendDone();
-          if (parsed.error) {
-            console.error('Gemini stream error payload:', parsed.error);
-            res.write(`data: ${JSON.stringify({ error: parsed.error.message || 'AI stream error' })}\n\n`);
-            sendDone();
-          }
+          if (parsed.choices?.[0]?.finish_reason) sendDone();
         } catch {
           // partial JSON; will complete on next chunk
         }
@@ -221,7 +215,7 @@ router.post('/', async (req: AuthRequest, res) => {
       return;
     }
     console.error('chat error:', e);
-    if (e instanceof GeminiError) {
+    if (e instanceof GroqError) {
       if (!res.headersSent) {
         res.status(e.status).json({ error: e.message });
       } else {

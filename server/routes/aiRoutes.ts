@@ -4,13 +4,13 @@ import type { AuthRequest } from '../auth.js';
 import { db } from '../db.js';
 import { notes, tags, noteTags } from '../../shared/schema.js';
 import { and, eq, inArray } from 'drizzle-orm';
-import { geminiGenerate, geminiGenerateJSON, GeminiError } from '../lib/gemini.js';
+import { groqGenerate, groqGenerateJSON, groqTranscribe, GroqError } from '../lib/groq.js';
 
 const router = Router();
 router.use(authMiddleware);
 
 function handleAIError(res: any, e: unknown) {
-  if (e instanceof GeminiError) {
+  if (e instanceof GroqError) {
     res.status(e.status).json({ error: e.message });
     return;
   }
@@ -36,7 +36,7 @@ Note content: ${content}
 
 Return STRICT JSON: {"tags": ["tag1", "tag2"]}`;
 
-    const result = await geminiGenerateJSON<{ tags: string[] }>(prompt, {
+    const result = await groqGenerateJSON<{ tags: string[] }>(prompt, {
       temperature: 0.3,
       maxOutputTokens: 200,
     });
@@ -62,7 +62,7 @@ router.post('/summarize', async (req: AuthRequest, res) => {
       return;
     }
 
-    const summary = await geminiGenerate(
+    const summary = await groqGenerate(
       `Summarize the following note in 1-2 concise sentences. No preamble, just the summary.\n\nTitle: ${title}\n\nContent:\n${content}`,
       { temperature: 0.3, maxOutputTokens: 200 },
     );
@@ -81,7 +81,7 @@ router.post('/enhance', async (req: AuthRequest, res) => {
       return;
     }
 
-    const enhanced = await geminiGenerate(
+    const enhanced = await groqGenerate(
       `Rewrite the following note to be clearer, more concise, and well-structured. Keep the original language and meaning. Return only the rewritten note, no explanations.\n\n${content}`,
       { temperature: 0.4, maxOutputTokens: 800 },
     );
@@ -114,7 +114,7 @@ router.post('/search', async (req: AuthRequest, res) => {
       .map((n, i) => `[${i}] id=${n.id} | title="${n.title}" | ${(n.content || '').slice(0, 300)}`)
       .join('\n');
 
-    const result = await geminiGenerateJSON<{ noteIds: string[]; explanation?: string }>(
+    const result = await groqGenerateJSON<{ noteIds: string[]; explanation?: string }>(
       `You are a semantic search engine over a user's notes. Given a query, return the IDs of the most relevant notes (max 10), most relevant first. If none match, return an empty array.
 
 Query: ${query}
@@ -143,40 +143,7 @@ router.post('/transcribe', async (req: AuthRequest, res) => {
       return;
     }
 
-    const apiKey = process.env.GOOGLE_API_KEY;
-    if (!apiKey) {
-      res.status(503).json({ error: 'AI service not configured.' });
-      return;
-    }
-
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`;
-    const upstream = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              { text: 'Transcribe this audio verbatim. Return only the transcript, no preamble.' },
-              { inline_data: { mime_type: mimeType, data: audioBase64 } },
-            ],
-          },
-        ],
-        generationConfig: { temperature: 0.0, maxOutputTokens: 2048 },
-      }),
-    });
-
-    if (!upstream.ok) {
-      const t = await upstream.text().catch(() => '');
-      console.error('Transcribe error', upstream.status, t);
-      const code = upstream.status === 429 ? 429 : upstream.status >= 500 ? 502 : 503;
-      res.status(code).json({ error: 'Transcription failed.' });
-      return;
-    }
-
-    const data = await upstream.json();
-    const transcript = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('').trim() ?? '';
+    const transcript = await groqTranscribe(audioBase64, mimeType);
     res.json({ transcript });
   } catch (e) {
     handleAIError(res, e);
