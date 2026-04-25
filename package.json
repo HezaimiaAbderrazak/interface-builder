@@ -4,9 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx server/index.ts & vite --port 5000",
-    "dev:server": "tsx server/index.ts",
-    "dev:client": "vite --port 5000",
+    "dev": "npx tsx server/index.ts & npx vite --port 5000",
+    "dev:server": "npx tsx server/index.ts",
+    "dev:client": "npx vite --port 5000",
     "build": "vite build && npm run build:server",
     "start": "NODE_ENV=production node dist-server/index.js",
     "build:server": "esbuild server/index.ts --bundle --platform=node --outfile=dist-server/index.js --format=esm --packages=external",
