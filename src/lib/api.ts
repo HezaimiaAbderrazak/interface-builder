@@ -51,6 +51,7 @@ export interface NoteFromServer {
   isDeleted: boolean;
   isVoiceNote: boolean;
   voiceDuration: number | null;
+  audioUrl: string | null;
   reminderAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -124,5 +125,10 @@ export const aiApi = {
     request<{ transcript: string }>('/ai/transcribe', {
       method: 'POST',
       body: JSON.stringify({ audioBase64, mimeType }),
+    }),
+  translate: (content: string, targetLanguage: string) =>
+    request<{ translated: string }>('/ai/translate', {
+      method: 'POST',
+      body: JSON.stringify({ content, targetLanguage }),
     }),
 };

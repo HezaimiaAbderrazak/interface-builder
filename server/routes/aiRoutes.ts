@@ -150,4 +150,23 @@ router.post('/transcribe', async (req: AuthRequest, res) => {
   }
 });
 
+router.post('/translate', async (req: AuthRequest, res) => {
+  try {
+    const { content = '', targetLanguage = 'English' } = req.body ?? {};
+    if (!content || content.trim().length < 2) {
+      res.status(400).json({ error: 'Content is too short to translate.' });
+      return;
+    }
+
+    const translated = await groqGenerate(
+      `Translate the following text to ${targetLanguage}. Return only the translated text, no preamble, no explanation, no quotes.\n\n${content}`,
+      { temperature: 0.2, maxOutputTokens: 2000 },
+    );
+
+    res.json({ translated });
+  } catch (e) {
+    handleAIError(res, e);
+  }
+});
+
 export default router;

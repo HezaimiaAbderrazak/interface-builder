@@ -33,6 +33,7 @@ function serverNoteToLocal(n: any): NoteType {
     updatedAt: n.updatedAt,
     isVoiceNote: n.isVoiceNote,
     voiceDuration: n.voiceDuration || undefined,
+    audioUrl: n.audioUrl || null,
   };
 }
 
@@ -57,6 +58,7 @@ export function NotesProvider({ children }: { children: ReactNode }) {
       isDeleted: data.isDeleted,
       isVoiceNote: data.isVoiceNote,
       voiceDuration: data.voiceDuration ?? null,
+      audioUrl: (data as any).audioUrl ?? null,
       tags: data.tags as any,
     });
     const note = serverNoteToLocal(server);

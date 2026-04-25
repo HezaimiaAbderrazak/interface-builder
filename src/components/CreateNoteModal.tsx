@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  X, Mic, Square, Play, Pause, Sparkles, Tag, Wand2, Palette
+  X, Mic, Square, Play, Pause, Sparkles, Tag, Wand2, Palette, Loader2, FileText
 } from 'lucide-react';
 import { useNotes } from '@/store/NotesContext';
+import { aiApi } from '@/lib/api';
+import { toast } from 'sonner';
 import type { NoteColor } from '@/types';
 
 interface CreateNoteModalProps {
@@ -37,7 +39,10 @@ export default function CreateNoteModal({ open, onClose }: CreateNoteModalProps)
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioURL, setAudioURL] = useState<string | null>(null);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
@@ -49,7 +54,8 @@ export default function CreateNoteModal({ open, onClose }: CreateNoteModalProps)
     else {
       setTitle(''); setContent(''); setColor('default'); setTags([]);
       setMode('write'); setIsRecording(false); setRecordingTime(0);
-      setAudioURL(null); setIsPlaying(false); setTagInput('');
+      setAudioURL(null); setAudioBlob(null); setIsPlaying(false); setTagInput('');
+      setIsTranscribing(false); setIsSaving(false);
       if (timerRef.current) clearInterval(timerRef.current);
     }
   }, [open]);
@@ -61,7 +67,12 @@ export default function CreateNoteModal({ open, onClose }: CreateNoteModalProps)
       mediaRecorderRef.current = mr;
       chunksRef.current = [];
       mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      mr.onstop = () => { setAudioURL(URL.createObjectURL(new Blob(chunksRef.current, { type: 'audio/webm' }))); stream.getTracks().forEach(t => t.stop()); };
+      mr.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        setAudioBlob(blob);
+        setAudioURL(URL.createObjectURL(blob));
+        stream.getTracks().forEach(t => t.stop());
+      };
       mr.start();
       setIsRecording(true); setRecordingTime(0);
       timerRef.current = window.setInterval(() => setRecordingTime(t => t + 1), 1000);
@@ -74,20 +85,64 @@ export default function CreateNoteModal({ open, onClose }: CreateNoteModalProps)
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
   };
 
+  const handleTranscribe = async () => {
+    if (!audioBlob) return;
+    setIsTranscribing(true);
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(audioBlob);
+      reader.onloadend = async () => {
+        const base64 = (reader.result as string).split(',')[1];
+        try {
+          const { transcript } = await aiApi.transcribe(base64, 'audio/webm');
+          if (transcript) {
+            setContent(transcript);
+            toast.success('Transcription complete');
+          }
+        } catch (e: any) {
+          toast.error(e.message || 'Transcription failed');
+        } finally {
+          setIsTranscribing(false);
+        }
+      };
+    } catch {
+      setIsTranscribing(false);
+      toast.error('Failed to read audio');
+    }
+  };
+
   const formatTime = (s: number) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
   const addTag = () => { const t = tagInput.trim(); if (t && !tags.includes(t)) { setTags(p => [...p, t]); setTagInput(''); } };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!title.trim() && !content.trim() && !audioURL) return;
-    addNote({
-      title: title.trim() || (mode === 'voice' ? 'Voice Note' : 'Untitled'),
-      content: content.trim() || (mode === 'voice' ? `🎙 Voice note (${formatTime(recordingTime)})` : ''),
-      color, isPinned: false, isArchived: false, isDeleted: false,
-      tags: tags.map(name => ({ id: crypto.randomUUID(), name, isAI: false })),
-      isVoiceNote: mode === 'voice',
-      voiceDuration: mode === 'voice' ? recordingTime : undefined,
-    });
-    onClose();
+    setIsSaving(true);
+    try {
+      let audioDataUrl: string | null = null;
+      if (audioBlob) {
+        const reader = new FileReader();
+        await new Promise<void>((resolve) => {
+          reader.onloadend = () => resolve();
+          reader.readAsDataURL(audioBlob);
+        });
+        audioDataUrl = reader.result as string;
+      }
+
+      await addNote({
+        title: title.trim() || (mode === 'voice' ? 'Voice Note' : 'Untitled'),
+        content: content.trim() || (mode === 'voice' ? `🎙 Voice note (${formatTime(recordingTime)})` : ''),
+        color, isPinned: false, isArchived: false, isDeleted: false,
+        tags: tags.map(name => ({ id: crypto.randomUUID(), name, isAI: false })),
+        isVoiceNote: mode === 'voice',
+        voiceDuration: mode === 'voice' ? recordingTime : undefined,
+        audioUrl: audioDataUrl,
+      } as any);
+      onClose();
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to save note');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const selectedColor = colors.find(c => c.value === color)!;
@@ -171,17 +226,30 @@ export default function CreateNoteModal({ open, onClose }: CreateNoteModalProps)
                   </button>
                 )}
                 {audioURL && !isRecording && (
-                  <button onClick={() => { setAudioURL(null); setRecordingTime(0); }}
+                  <button onClick={() => { setAudioURL(null); setAudioBlob(null); setRecordingTime(0); }}
                     className="w-11 h-11 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors">
                     <X className="w-4 h-4 text-foreground" />
                   </button>
                 )}
               </div>
               {audioURL && <audio ref={audioRef} src={audioURL} onEnded={() => setIsPlaying(false)} />}
-              {audioURL && (
-                <textarea value={content} onChange={(e) => setContent(e.target.value)}
-                  placeholder="Add a note or transcription..."
-                  className="w-full min-h-[60px] text-sm text-foreground bg-secondary/50 rounded-xl p-3 outline-none resize-none leading-relaxed placeholder:text-muted-foreground/60 border border-border/50" />
+
+              {audioURL && !isRecording && (
+                <div className="w-full flex flex-col gap-2">
+                  <button
+                    onClick={handleTranscribe}
+                    disabled={isTranscribing}
+                    className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors disabled:opacity-50"
+                  >
+                    {isTranscribing
+                      ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Transcribing...</>
+                      : <><FileText className="w-3.5 h-3.5" /> Transcribe with AI</>
+                    }
+                  </button>
+                  <textarea value={content} onChange={(e) => setContent(e.target.value)}
+                    placeholder="Transcript will appear here, or add a note..."
+                    className="w-full min-h-[70px] text-sm text-foreground bg-secondary/50 rounded-xl p-3 outline-none resize-none leading-relaxed placeholder:text-muted-foreground/60 border border-border/50" />
+                </div>
               )}
             </div>
           )}
@@ -245,9 +313,9 @@ export default function CreateNoteModal({ open, onClose }: CreateNoteModalProps)
             Cancel
           </button>
           <button onClick={handleSave}
-            disabled={!title.trim() && !content.trim() && !audioURL}
-            className="px-5 py-2 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-40 shadow-md shadow-primary/20">
-            Save
+            disabled={(!title.trim() && !content.trim() && !audioURL) || isSaving}
+            className="px-5 py-2 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-40 shadow-md shadow-primary/20 flex items-center gap-1.5">
+            {isSaving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</> : 'Save'}
           </button>
         </div>
       </motion.div>

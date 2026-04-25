@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Sparkles, Bold, Italic, Code, List, CheckSquare, Link,
   Heading1, Heading2, Tag, Wand2, FileText, Pin, PinOff,
-  Archive, Trash2, Palette, Loader2
+  Archive, Trash2, Palette, Loader2, Play, Pause, Languages, ChevronDown
 } from 'lucide-react';
 import { useNotes } from '@/store/NotesContext';
 import { aiApi } from '@/lib/api';
@@ -37,13 +37,25 @@ const colorAccent: Record<NoteColor, string> = {
   default:'from-transparent to-transparent',
 };
 
+const LANGUAGES = [
+  'Arabic', 'English', 'French', 'Spanish', 'German', 'Italian', 'Portuguese',
+  'Russian', 'Chinese (Simplified)', 'Chinese (Traditional)', 'Japanese', 'Korean',
+  'Turkish', 'Dutch', 'Polish', 'Swedish', 'Norwegian', 'Danish', 'Finnish',
+  'Greek', 'Hebrew', 'Hindi', 'Bengali', 'Urdu', 'Persian', 'Indonesian',
+  'Malay', 'Thai', 'Vietnamese', 'Romanian', 'Hungarian', 'Czech', 'Ukrainian',
+];
+
 export default function NoteEditor({ note, onClose }: NoteEditorProps) {
   const { updateNote, togglePin, archiveNote, deleteNote } = useNotes();
   const [title, setTitle] = useState(note.title);
   const [content, setContent] = useState(note.content);
   const [showColors, setShowColors] = useState(false);
   const [tagInput, setTagInput] = useState('');
-  const [aiBusy, setAiBusy] = useState<null | 'enhance' | 'summarize' | 'autotag'>(null);
+  const [aiBusy, setAiBusy] = useState<null | 'enhance' | 'summarize' | 'autotag' | 'translate'>( null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [showLangPicker, setShowLangPicker] = useState(false);
+  const [selectedLang, setSelectedLang] = useState('Arabic');
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const handleEnhance = async () => {
     if (!content.trim()) { toast.error('Nothing to enhance yet.'); return; }
@@ -89,6 +101,24 @@ export default function NoteEditor({ note, onClose }: NoteEditorProps) {
     } finally { setAiBusy(null); }
   };
 
+  const handleTranslate = async (lang: string) => {
+    const textToTranslate = content.trim() || title.trim();
+    if (!textToTranslate) { toast.error('Nothing to translate yet.'); return; }
+    setShowLangPicker(false);
+    setAiBusy('translate');
+    try {
+      const { translated } = await aiApi.translate(textToTranslate, lang);
+      const next = content.trim()
+        ? `${content}\n\n---\n🌐 ${lang} translation:\n${translated}`
+        : translated;
+      setContent(next);
+      updateNote(note.id, { content: next });
+      toast.success(`Translated to ${lang}`);
+    } catch (e: any) {
+      toast.error(e.message || 'Translation failed');
+    } finally { setAiBusy(null); }
+  };
+
   const handleSave = () => {
     updateNote(note.id, { title: title.trim() || 'Untitled', content });
     onClose();
@@ -108,6 +138,7 @@ export default function NoteEditor({ note, onClose }: NoteEditorProps) {
   };
 
   const currentColor = colorOptions.find(c => c.value === note.color)!;
+  const audioUrl = (note as any).audioUrl as string | null | undefined;
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex">
@@ -183,6 +214,41 @@ export default function NoteEditor({ note, onClose }: NoteEditorProps) {
             </div>
           </div>
 
+          {/* Audio Player for saved voice notes */}
+          {note.isVoiceNote && audioUrl && (
+            <div className="mb-5 p-4 rounded-2xl bg-secondary/50 border border-border/50">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    if (!audioRef.current) return;
+                    isPlaying ? audioRef.current.pause() : audioRef.current.play();
+                    setIsPlaying(!isPlaying);
+                  }}
+                  className="w-10 h-10 rounded-full bg-primary flex items-center justify-center hover:opacity-90 transition-opacity flex-shrink-0"
+                >
+                  {isPlaying ? <Pause className="w-4 h-4 text-primary-foreground" /> : <Play className="w-4 h-4 text-primary-foreground ml-0.5" />}
+                </button>
+                <div className="flex-1">
+                  <div className="flex items-end gap-[2px] h-8">
+                    {Array.from({ length: 40 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className={`w-1 rounded-full transition-all ${isPlaying ? 'bg-primary animate-pulse' : 'bg-primary/40'}`}
+                        style={{ height: `${Math.sin(i * 0.4) * 40 + 50}%` }}
+                      />
+                    ))}
+                  </div>
+                </div>
+                {note.voiceDuration && (
+                  <span className="text-xs text-muted-foreground font-mono flex-shrink-0">
+                    {Math.floor(note.voiceDuration / 60).toString().padStart(2, '0')}:{(note.voiceDuration % 60).toString().padStart(2, '0')}
+                  </span>
+                )}
+              </div>
+              <audio ref={audioRef} src={audioUrl} onEnded={() => setIsPlaying(false)} />
+            </div>
+          )}
+
           {/* Body */}
           <textarea
             value={content}
@@ -193,7 +259,7 @@ export default function NoteEditor({ note, onClose }: NoteEditorProps) {
         </div>
 
         {/* Footer */}
-        <div className="relative px-5 py-3 border-t border-border/60 flex items-center gap-2 flex-shrink-0">
+        <div className="relative px-5 py-3 border-t border-border/60 flex items-center gap-2 flex-shrink-0 flex-wrap">
           {/* Color picker */}
           <div className="relative">
             <button onClick={() => setShowColors(!showColors)}
@@ -231,6 +297,49 @@ export default function NoteEditor({ note, onClose }: NoteEditorProps) {
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-secondary text-secondary-foreground text-xs font-medium hover:bg-secondary/80 transition-colors disabled:opacity-50">
             {aiBusy === 'autotag' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} Auto-Tag
           </button>
+
+          {/* Translate button with language picker */}
+          <div className="relative">
+            <button
+              onClick={() => setShowLangPicker(s => !s)}
+              disabled={aiBusy !== null}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-secondary text-secondary-foreground text-xs font-medium hover:bg-secondary/80 transition-colors disabled:opacity-50"
+            >
+              {aiBusy === 'translate'
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <Languages className="w-3.5 h-3.5" />
+              }
+              Translate
+              <ChevronDown className="w-3 h-3 opacity-60" />
+            </button>
+
+            <AnimatePresence>
+              {showLangPicker && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.95 }}
+                  className="absolute bottom-full left-0 mb-2 glass-strong rounded-2xl shadow-2xl border border-border/60 z-50 w-52 overflow-hidden"
+                >
+                  <div className="px-3 py-2 border-b border-border/60">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Translate to</p>
+                  </div>
+                  <div className="max-h-56 overflow-y-auto scrollbar-thin py-1">
+                    {LANGUAGES.map((lang) => (
+                      <button
+                        key={lang}
+                        onClick={() => { setSelectedLang(lang); handleTranslate(lang); }}
+                        className={`w-full text-left px-3 py-2 text-xs transition-colors hover:bg-secondary/80 ${selectedLang === lang ? 'text-primary font-medium' : 'text-foreground'}`}
+                      >
+                        {lang}
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           <div className="flex-1" />
           <button onClick={handleSave}
             className="px-5 py-2 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90 transition-opacity shadow-md shadow-primary/20">

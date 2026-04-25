@@ -19,6 +19,7 @@ export interface Note {
   updatedAt: string;
   isVoiceNote: boolean;
   voiceDuration?: number;
+  audioUrl?: string | null;
   reminderAt?: string | null;
   summary?: string | null;
 }

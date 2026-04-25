@@ -43,7 +43,7 @@ router.get('/', async (req: AuthRequest, res) => {
 
 router.post('/', async (req: AuthRequest, res) => {
   try {
-    const { title, content, color, isPinned, isArchived, isVoiceNote, voiceDuration, reminderAt, tags: tagList } = req.body;
+    const { title, content, color, isPinned, isArchived, isVoiceNote, voiceDuration, audioUrl, reminderAt, tags: tagList } = req.body;
     const [note] = await db.insert(notes).values({
       userId: req.userId!,
       title: title || '',
@@ -53,6 +53,7 @@ router.post('/', async (req: AuthRequest, res) => {
       isArchived: isArchived || false,
       isVoiceNote: isVoiceNote || false,
       voiceDuration: voiceDuration || null,
+      audioUrl: audioUrl || null,
       reminderAt: reminderAt ? new Date(reminderAt) : null,
     }).returning();
 
@@ -72,7 +73,7 @@ router.patch('/:id', async (req: AuthRequest, res) => {
     if (!existing) { res.status(404).json({ error: 'Note not found' }); return; }
 
     const updateData: any = { updatedAt: new Date() };
-    const allowed = ['title', 'content', 'color', 'isPinned', 'isArchived', 'isDeleted', 'isVoiceNote', 'voiceDuration', 'reminderAt'];
+    const allowed = ['title', 'content', 'color', 'isPinned', 'isArchived', 'isDeleted', 'isVoiceNote', 'voiceDuration', 'audioUrl', 'reminderAt'];
     for (const key of allowed) {
       if (key in updates) {
         if (key === 'reminderAt') updateData[key] = updates[key] ? new Date(updates[key]) : null;
