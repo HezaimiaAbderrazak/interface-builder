@@ -82,7 +82,7 @@ export default function SearchBar({ onSearch, onCommandPalette, onAISearch }: Se
     <div className="relative max-w-2xl w-full">
       <motion.div
         animate={{ scale: focused ? 1.01 : 1 }}
-        className={`glass-strong flex items-center gap-3 px-4 py-2.5 rounded-xl transition-colors ${
+        className={`bg-card flex items-center gap-3 px-4 py-2.5 rounded-xl transition-colors ${
           focused ? 'border-primary/40' : ''
         }`}
       >

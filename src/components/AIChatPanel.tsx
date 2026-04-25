@@ -237,7 +237,7 @@ export default function AIChatPanel({ open, onClose }: AIChatPanelProps) {
       animate={{ x: 0 }}
       exit={{ x: '100%' }}
       transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-      className="fixed right-0 top-0 h-screen w-full max-w-md glass-strong border-l border-border z-40 flex flex-col"
+      className="fixed right-0 top-0 h-screen w-full max-w-md bg-card border-l border-border z-40 flex flex-col"
     >
       <div className="flex items-center justify-between px-5 h-14 border-b border-border">
         <div className="flex items-center gap-2">

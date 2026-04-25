@@ -91,7 +91,7 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
         animate={{ x: 0 }}
         exit={{ x: '100%' }}
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-        className="absolute right-0 top-0 h-full w-full max-w-md glass-strong border-l border-border flex flex-col"
+        className="absolute right-0 top-0 h-full w-full max-w-md bg-card border-l border-border flex flex-col"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 h-14 border-b border-border flex-shrink-0">
