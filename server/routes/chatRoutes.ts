@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import { authMiddleware } from '../auth.js';
 import type { AuthRequest } from '../auth.js';
+import { db } from '../db.js';
+import { chatConversations, chatMessages } from '../../shared/schema.js';
+import { and, asc, desc, eq } from 'drizzle-orm';
+import { geminiStream, GeminiError } from '../lib/gemini.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -32,28 +36,66 @@ Or for reminders:
 Always provide a friendly conversational response along with the action block. Keep responses concise and helpful.
 If it's just a conversation (not a command), respond normally without action blocks.`;
 
-const GEMINI_MODEL = 'gemini-2.0-flash';
+router.get('/conversations', async (req: AuthRequest, res) => {
+  try {
+    const rows = await db
+      .select()
+      .from(chatConversations)
+      .where(eq(chatConversations.userId, req.userId!))
+      .orderBy(desc(chatConversations.updatedAt))
+      .limit(50);
+    res.json(rows);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
-function mapGeminiStatus(status: number): { code: number; message: string } {
-  if (status === 400) return { code: 400, message: 'Invalid request to AI service.' };
-  if (status === 401 || status === 403) return { code: 503, message: 'AI service authentication failed. Check the GOOGLE_API_KEY.' };
-  if (status === 404) return { code: 503, message: `AI model "${GEMINI_MODEL}" is not available for this API key.` };
-  if (status === 429) return { code: 429, message: 'Rate limit exceeded. Please wait a moment and try again.' };
-  if (status >= 500) return { code: 502, message: 'Upstream AI service is temporarily unavailable.' };
-  return { code: 500, message: 'AI service error.' };
-}
+router.get('/conversations/:id', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const [conv] = await db
+      .select()
+      .from(chatConversations)
+      .where(and(eq(chatConversations.id, id), eq(chatConversations.userId, req.userId!)))
+      .limit(1);
+    if (!conv) {
+      res.status(404).json({ error: 'Conversation not found' });
+      return;
+    }
+    const messages = await db
+      .select()
+      .from(chatMessages)
+      .where(eq(chatMessages.conversationId, id))
+      .orderBy(asc(chatMessages.createdAt));
+    res.json({ conversation: conv, messages });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.delete('/conversations/:id', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    await db
+      .delete(chatConversations)
+      .where(and(eq(chatConversations.id, id), eq(chatConversations.userId, req.userId!)));
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 router.post('/', async (req: AuthRequest, res) => {
-  const { messages } = req.body ?? {};
+  const { messages, conversationId: incomingId } = req.body ?? {};
 
   if (!Array.isArray(messages) || messages.length === 0) {
     res.status(400).json({ error: 'messages must be a non-empty array' });
     return;
   }
 
-  const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
-  if (!GOOGLE_API_KEY) {
-    res.status(503).json({ error: 'AI service not configured. Please add a GOOGLE_API_KEY secret.' });
+  const lastUser = [...messages].reverse().find((m) => m?.role === 'user');
+  if (!lastUser) {
+    res.status(400).json({ error: 'no user message provided' });
     return;
   }
 
@@ -62,38 +104,41 @@ router.post('/', async (req: AuthRequest, res) => {
     if (!res.writableEnded) controller.abort();
   });
 
+  let conversationId: string | null = null;
   try {
-    const geminiContents = (messages as { role: string; content: string }[])
-      .filter((m) => typeof m?.content === 'string' && m.content.length > 0)
-      .map((m) => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }],
-      }));
+    if (incomingId) {
+      const [existing] = await db
+        .select({ id: chatConversations.id })
+        .from(chatConversations)
+        .where(and(eq(chatConversations.id, incomingId), eq(chatConversations.userId, req.userId!)))
+        .limit(1);
+      if (existing) conversationId = existing.id;
+    }
+    if (!conversationId) {
+      const title = String(lastUser.content || 'New chat').slice(0, 60);
+      const [created] = await db
+        .insert(chatConversations)
+        .values({ userId: req.userId!, title })
+        .returning({ id: chatConversations.id });
+      conversationId = created.id;
+    }
 
-    const url =
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`;
+    await db.insert(chatMessages).values({
+      conversationId,
+      role: 'user',
+      content: String(lastUser.content),
+    });
+  } catch (e) {
+    console.error('chat persistence error (pre):', e);
+  }
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': GOOGLE_API_KEY,
-      },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: geminiContents,
-        generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
-      }),
+  try {
+    const stream = await geminiStream(messages, {
+      systemInstruction: SYSTEM_PROMPT,
+      temperature: 0.7,
+      maxOutputTokens: 1024,
       signal: controller.signal,
     });
-
-    if (!response.ok || !response.body) {
-      const text = await response.text().catch(() => '');
-      console.error('Gemini error:', response.status, text);
-      const { code, message } = mapGeminiStatus(response.status);
-      res.status(code).json({ error: message });
-      return;
-    }
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -101,9 +146,14 @@ router.post('/', async (req: AuthRequest, res) => {
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders?.();
 
-    const reader = response.body.getReader();
+    if (conversationId) {
+      res.write(`data: ${JSON.stringify({ conversationId })}\n\n`);
+    }
+
+    const reader = stream.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let assistantText = '';
     let doneSent = false;
 
     const sendDone = () => {
@@ -113,61 +163,82 @@ router.post('/', async (req: AuthRequest, res) => {
       }
     };
 
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
 
-        let newline: number;
-        while ((newline = buffer.indexOf('\n')) !== -1) {
-          const line = buffer.slice(0, newline).replace(/\r$/, '');
-          buffer = buffer.slice(newline + 1);
+      let newline: number;
+      while ((newline = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, newline).replace(/\r$/, '');
+        buffer = buffer.slice(newline + 1);
 
-          if (!line.startsWith('data: ')) continue;
-          const json = line.slice(6).trim();
-          if (!json) continue;
-          if (json === '[DONE]') { sendDone(); continue; }
+        if (!line.startsWith('data: ')) continue;
+        const json = line.slice(6).trim();
+        if (!json) continue;
+        if (json === '[DONE]') { sendDone(); continue; }
 
-          try {
-            const parsed = JSON.parse(json);
-            const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (text) {
-              const chunk = { choices: [{ delta: { content: text }, index: 0 }] };
-              res.write(`data: ${JSON.stringify(chunk)}\n\n`);
-            }
-            if (parsed.candidates?.[0]?.finishReason) {
-              sendDone();
-            }
-            if (parsed.error) {
-              console.error('Gemini stream error payload:', parsed.error);
-              res.write(`data: ${JSON.stringify({ error: parsed.error.message || 'AI stream error' })}\n\n`);
-              sendDone();
-            }
-          } catch {
-            // partial JSON; skip silently — next chunk may complete it
+        try {
+          const parsed = JSON.parse(json);
+          const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) {
+            assistantText += text;
+            const chunk = { choices: [{ delta: { content: text }, index: 0 }] };
+            res.write(`data: ${JSON.stringify(chunk)}\n\n`);
           }
+          if (parsed.candidates?.[0]?.finishReason) sendDone();
+          if (parsed.error) {
+            console.error('Gemini stream error payload:', parsed.error);
+            res.write(`data: ${JSON.stringify({ error: parsed.error.message || 'AI stream error' })}\n\n`);
+            sendDone();
+          }
+        } catch {
+          // partial JSON; will complete on next chunk
         }
       }
-      sendDone();
-      res.end();
-    } catch (streamErr: any) {
-      if (streamErr?.name === 'AbortError') {
-        res.end();
-        return;
+    }
+    sendDone();
+    res.end();
+
+    if (conversationId && assistantText) {
+      try {
+        await db.insert(chatMessages).values({
+          conversationId,
+          role: 'assistant',
+          content: assistantText,
+        });
+        await db
+          .update(chatConversations)
+          .set({ updatedAt: new Date() })
+          .where(eq(chatConversations.id, conversationId));
+      } catch (e) {
+        console.error('chat persistence error (post):', e);
       }
-      console.error('Stream error:', streamErr);
-      res.write(`data: ${JSON.stringify({ error: 'Stream interrupted' })}\n\n`);
-      sendDone();
-      res.end();
     }
   } catch (e: any) {
-    console.error('chat error:', e);
-    if (!res.headersSent) {
-      const status = e?.name === 'AbortError' ? 499 : 500;
-      res.status(status).json({ error: e.message || 'Unknown error' });
-    } else {
+    if (e?.name === 'AbortError') {
       try { res.end(); } catch { /* noop */ }
+      return;
+    }
+    console.error('chat error:', e);
+    if (e instanceof GeminiError) {
+      if (!res.headersSent) {
+        res.status(e.status).json({ error: e.message });
+      } else {
+        res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`);
+        res.write('data: [DONE]\n\n');
+        res.end();
+      }
+      return;
+    }
+    if (!res.headersSent) {
+      res.status(500).json({ error: e.message || 'Unknown error' });
+    } else {
+      try {
+        res.write(`data: ${JSON.stringify({ error: 'Stream interrupted' })}\n\n`);
+        res.write('data: [DONE]\n\n');
+        res.end();
+      } catch { /* noop */ }
     }
   }
 });

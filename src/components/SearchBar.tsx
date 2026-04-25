@@ -1,18 +1,37 @@
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Sparkles, Command, Mic, MicOff, Loader2 } from 'lucide-react';
+import { aiApi } from '@/lib/api';
+import { toast } from 'sonner';
 
 interface SearchBarProps {
   onSearch: (query: string) => void;
   onCommandPalette: () => void;
+  onAISearch?: (noteIds: string[], explanation: string) => void;
 }
 
-export default function SearchBar({ onSearch, onCommandPalette }: SearchBarProps) {
+export default function SearchBar({ onSearch, onCommandPalette, onAISearch }: SearchBarProps) {
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [aiSearching, setAiSearching] = useState(false);
   const recognitionRef = useRef<any>(null);
+
+  const runAISearch = async () => {
+    const q = query.trim();
+    if (!q || !onAISearch) return;
+    setAiSearching(true);
+    try {
+      const { noteIds, explanation } = await aiApi.search(q);
+      onAISearch(noteIds, explanation);
+      if (noteIds.length === 0) toast.info('AI search found no relevant notes.');
+    } catch (e: any) {
+      toast.error(e.message || 'AI search failed');
+    } finally {
+      setAiSearching(false);
+    }
+  };
 
   const toggleLiveAudio = () => {
     if (isListening) {
@@ -77,10 +96,23 @@ export default function SearchBar({ onSearch, onCommandPalette }: SearchBarProps
           placeholder="Search notes semantically..."
           value={query}
           onChange={(e) => { setQuery(e.target.value); onSearch(e.target.value); }}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); runAISearch(); } }}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
         />
+
+        {onAISearch && query.trim() && (
+          <button
+            onClick={runAISearch}
+            disabled={aiSearching}
+            title="AI semantic search"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
+          >
+            {aiSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">AI</span>
+          </button>
+        )}
 
         {/* Live Audio Button */}
         <button

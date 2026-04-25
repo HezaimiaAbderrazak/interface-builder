@@ -14,7 +14,7 @@ import Background3D from '@/components/Background3D';
 import MindMap from '@/components/MindMap';
 import SettingsPanel from '@/components/SettingsPanel';
 import { useNotes } from '@/store/NotesContext';
-import type { Note } from '@/data/mockNotes';
+import type { Note } from '@/types';
 import {
   Plus, Sparkles, StickyNote, Star, LogOut,
   Tag, Archive, Trash2, Network, Settings,
@@ -54,6 +54,8 @@ export default function Index({ onSignOut }: IndexProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showMoreDrawer, setShowMoreDrawer] = useState(false);
+  const [aiSearchIds, setAiSearchIds] = useState<string[] | null>(null);
+  const [aiSearchExplanation, setAiSearchExplanation] = useState<string>('');
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -99,7 +101,10 @@ export default function Index({ onSignOut }: IndexProps) {
 
   const filteredNotes = useMemo(() => {
     let result = activeView === 'pinned' ? activeNotes.filter(n => n.isPinned) : activeNotes;
-    if (searchQuery) {
+    if (aiSearchIds) {
+      const set = new Set(aiSearchIds);
+      result = result.filter(n => set.has(n.id));
+    } else if (searchQuery) {
       const q = searchQuery.toLowerCase();
       result = result.filter(n => n.title.toLowerCase().includes(q) || (n.content || '').toLowerCase().includes(q));
     }
@@ -109,7 +114,7 @@ export default function Index({ onSignOut }: IndexProps) {
     else if (activeFilter === 'AI Tagged') result = result.filter(n => n.tags.some(t => t.isAI));
     else if (activeFilter === 'Recent') result = [...result].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     return result;
-  }, [activeView, activeNotes, searchQuery, activeFilter]);
+  }, [activeView, activeNotes, searchQuery, activeFilter, aiSearchIds]);
 
   const pinnedNotes = filteredNotes.filter(n => n.isPinned);
   const otherNotes = filteredNotes.filter(n => !n.isPinned);
@@ -142,7 +147,11 @@ export default function Index({ onSignOut }: IndexProps) {
           <AnimatePresence mode="wait">
             {showSearch ? (
               <motion.div key="search" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="flex-1">
-                <SearchBar onSearch={setSearchQuery} onCommandPalette={() => setCommandPaletteOpen(true)} autoFocus />
+                <SearchBar
+                  onSearch={(q) => { setSearchQuery(q); if (!q) { setAiSearchIds(null); setAiSearchExplanation(''); } }}
+                  onCommandPalette={() => setCommandPaletteOpen(true)}
+                  onAISearch={(ids, expl) => { setAiSearchIds(ids); setAiSearchExplanation(expl); }}
+                />
               </motion.div>
             ) : (
               <motion.h1 key="title" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-base font-semibold text-foreground">

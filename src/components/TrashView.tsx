@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { Trash2 } from 'lucide-react';
 import { useNotes } from '@/store/NotesContext';
 import NoteCard from '@/components/NoteCard';
-import type { Note } from '@/data/mockNotes';
+import type { Note } from '@/types';
 
 interface TrashViewProps {
   onNoteClick: (note: Note) => void;

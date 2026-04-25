@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
-import type { Note as NoteType, NoteColor, Tag } from '@/data/mockNotes';
+import type { Note as NoteType, NoteColor, Tag } from '@/types';
 import { notesApi } from '@/lib/api';
 import { toast } from 'sonner';
 

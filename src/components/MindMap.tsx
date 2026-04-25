@@ -2,7 +2,7 @@ import { useRef, useMemo, useState, useCallback } from 'react';
 import { Canvas, useFrame, useThree, ThreeEvent } from '@react-three/fiber';
 import { OrbitControls, Text, Float, Html } from '@react-three/drei';
 import * as THREE from 'three';
-import type { Note } from '@/data/mockNotes';
+import type { Note } from '@/types';
 
 const noteColorHex: Record<string, string> = {
   yellow: '#eab308', green: '#22c55e', blue: '#3b82f6',

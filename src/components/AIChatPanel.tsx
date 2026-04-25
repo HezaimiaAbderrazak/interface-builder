@@ -1,9 +1,13 @@
-import { useState, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Send, Sparkles, Bot, User, Loader2, Bell, FileText, Tag } from 'lucide-react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import {
+  X, Send, Sparkles, Bot, User, Loader2, Bell, FileText, Tag,
+  History, Plus, Trash2,
+} from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { chatStream } from '@/lib/api';
+import { chatStream, chatApi, type ChatConversationSummary } from '@/lib/api';
 import { useNotes } from '@/store/NotesContext';
+import { toast } from 'sonner';
 
 interface AIChatPanelProps {
   open: boolean;
@@ -25,8 +29,50 @@ export default function AIChatPanel({ open, onClose }: AIChatPanelProps) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Msg[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<ChatConversationSummary[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
   const { addNote } = useNotes();
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const refreshConversations = useCallback(async () => {
+    try {
+      const list = await chatApi.listConversations();
+      setConversations(list);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    if (open) refreshConversations();
+  }, [open, refreshConversations]);
+
+  const startNewChat = () => {
+    setMessages([]);
+    setConversationId(null);
+    setShowHistory(false);
+  };
+
+  const loadConversation = async (id: string) => {
+    try {
+      const { messages: msgs } = await chatApi.getConversation(id);
+      setMessages(msgs.map(m => ({ role: m.role, content: m.content })));
+      setConversationId(id);
+      setShowHistory(false);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to load conversation');
+    }
+  };
+
+  const removeConversation = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await chatApi.deleteConversation(id);
+      if (conversationId === id) startNewChat();
+      refreshConversations();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete');
+    }
+  };
 
   const parseActions = (text: string): NoteAction[] => {
     const actions: NoteAction[] = [];
@@ -35,7 +81,7 @@ export default function AIChatPanel({ open, onClose }: AIChatPanelProps) {
     while ((match = regex.exec(text)) !== null) {
       try {
         actions.push(JSON.parse(match[1].trim()));
-      } catch { }
+      } catch { /* ignore */ }
     }
     return actions;
   };
@@ -53,6 +99,7 @@ export default function AIChatPanel({ open, onClose }: AIChatPanelProps) {
           tags: [],
           isVoiceNote: false,
         });
+        toast.success(`Created: ${action.title || 'AI Note'}`);
       }
     }
   }, [addNote]);
@@ -71,9 +118,10 @@ export default function AIChatPanel({ open, onClose }: AIChatPanelProps) {
     setIsLoading(true);
 
     let assistantSoFar = '';
+    let returnedConvId: string | null = conversationId;
 
     try {
-      const resp = await chatStream([...messages, userMsg]);
+      const resp = await chatStream([...messages, userMsg], conversationId);
 
       if (!resp.ok || !resp.body) {
         const errData = await resp.json().catch(() => ({}));
@@ -112,6 +160,10 @@ export default function AIChatPanel({ open, onClose }: AIChatPanelProps) {
           if (jsonStr === '[DONE]') break;
           try {
             const parsed = JSON.parse(jsonStr);
+            if (parsed.conversationId && parsed.conversationId !== conversationId) {
+              returnedConvId = parsed.conversationId;
+              setConversationId(parsed.conversationId);
+            }
             const content = parsed.choices?.[0]?.delta?.content;
             if (content) upsertAssistant(content);
           } catch {
@@ -123,6 +175,7 @@ export default function AIChatPanel({ open, onClose }: AIChatPanelProps) {
 
       const actions = parseActions(assistantSoFar);
       if (actions.length > 0) executeActions(actions);
+      if (returnedConvId) refreshConversations();
 
     } catch (e: any) {
       setMessages(prev => [...prev, { role: 'assistant', content: `Sorry, I encountered an error: ${e.message || 'Something went wrong'}` }]);
@@ -149,12 +202,43 @@ export default function AIChatPanel({ open, onClose }: AIChatPanelProps) {
           <span className="text-sm font-medium text-foreground">NoteFlow AI</span>
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">Live</span>
         </div>
-        <button onClick={onClose} className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
-          <X className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button onClick={startNewChat} title="New chat"
+            className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+            <Plus className="w-4 h-4" />
+          </button>
+          <button onClick={() => setShowHistory(s => !s)} title="History"
+            className={`p-2 rounded-md transition-colors ${showHistory ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}>
+            <History className="w-4 h-4" />
+          </button>
+          <button onClick={onClose} className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      {messages.length === 0 && (
+      {showHistory ? (
+        <div className="flex-1 overflow-y-auto scrollbar-thin px-3 py-3">
+          {conversations.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-8">No previous conversations.</p>
+          ) : (
+            conversations.map(c => (
+              <button key={c.id} onClick={() => loadConversation(c.id)}
+                className={`w-full flex items-center gap-2 text-left px-3 py-2.5 rounded-lg mb-1 transition-colors ${c.id === conversationId ? 'bg-secondary' : 'hover:bg-secondary/60'}`}>
+                <Bot className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-foreground truncate">{c.title}</p>
+                  <p className="text-[10px] text-muted-foreground">{new Date(c.updatedAt).toLocaleString()}</p>
+                </div>
+                <button onClick={(e) => removeConversation(c.id, e)}
+                  className="p-1 rounded text-muted-foreground hover:text-destructive">
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </button>
+            ))
+          )}
+        </div>
+      ) : messages.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center px-6 text-center gap-4">
           <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
             <Bot className="w-7 h-7 text-primary" />
@@ -182,9 +266,7 @@ export default function AIChatPanel({ open, onClose }: AIChatPanelProps) {
             ))}
           </div>
         </div>
-      )}
-
-      {messages.length > 0 && (
+      ) : (
         <div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-thin px-5 py-4 space-y-4">
           {messages.map((msg, i) => (
             <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>

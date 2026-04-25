@@ -67,7 +67,10 @@ export const notesApi = {
     request<{ success: boolean }>(`/notes/${id}`, { method: 'DELETE' }),
 };
 
-export async function chatStream(messages: { role: string; content: string }[]): Promise<Response> {
+export async function chatStream(
+  messages: { role: string; content: string }[],
+  conversationId?: string | null,
+): Promise<Response> {
   const token = getToken();
   const res = await fetch(`${BASE}/chat`, {
     method: 'POST',
@@ -75,7 +78,51 @@ export async function chatStream(messages: { role: string; content: string }[]):
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ messages, conversationId: conversationId || null }),
   });
   return res;
 }
+
+export interface ChatConversationSummary {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChatMessageRecord {
+  id: string;
+  conversationId: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+}
+
+export const chatApi = {
+  listConversations: () => request<ChatConversationSummary[]>('/chat/conversations'),
+  getConversation: (id: string) =>
+    request<{ conversation: ChatConversationSummary; messages: ChatMessageRecord[] }>(
+      `/chat/conversations/${id}`,
+    ),
+  deleteConversation: (id: string) =>
+    request<{ success: boolean }>(`/chat/conversations/${id}`, { method: 'DELETE' }),
+};
+
+export const aiApi = {
+  autoTag: (data: { title?: string; content?: string; existingTags?: string[] }) =>
+    request<{ tags: string[] }>('/ai/auto-tag', { method: 'POST', body: JSON.stringify(data) }),
+  summarize: (data: { title?: string; content?: string }) =>
+    request<{ summary: string }>('/ai/summarize', { method: 'POST', body: JSON.stringify(data) }),
+  enhance: (data: { content: string }) =>
+    request<{ content: string }>('/ai/enhance', { method: 'POST', body: JSON.stringify(data) }),
+  search: (query: string) =>
+    request<{ noteIds: string[]; explanation: string }>('/ai/search', {
+      method: 'POST',
+      body: JSON.stringify({ query }),
+    }),
+  transcribe: (audioBase64: string, mimeType: string) =>
+    request<{ transcript: string }>('/ai/transcribe', {
+      method: 'POST',
+      body: JSON.stringify({ audioBase64, mimeType }),
+    }),
+};

@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { Pin, Sparkles, Code, CheckSquare, MoreHorizontal, Mic, Archive, Trash2, PinOff, RotateCcw, Bell } from 'lucide-react';
 import { useState } from 'react';
-import type { Note, NoteColor } from '@/data/mockNotes';
+import type { Note, NoteColor } from '@/types';
 import { useNotes } from '@/store/NotesContext';
 
 const colorStyles: Record<NoteColor, { bg: string; border: string; dot: string; text: string }> = {

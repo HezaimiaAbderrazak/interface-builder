@@ -4,7 +4,7 @@ import {
   X, Mic, Square, Play, Pause, Sparkles, Tag, Wand2, Palette
 } from 'lucide-react';
 import { useNotes } from '@/store/NotesContext';
-import type { NoteColor } from '@/data/mockNotes';
+import type { NoteColor } from '@/types';
 
 interface CreateNoteModalProps {
   open: boolean;

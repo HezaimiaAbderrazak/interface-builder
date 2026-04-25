@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { Sparkles, Tag, Hash } from 'lucide-react';
 import { useNotes } from '@/store/NotesContext';
 import NoteCard from '@/components/NoteCard';
-import type { Note } from '@/data/mockNotes';
+import type { Note } from '@/types';
 import { useMemo, useState } from 'react';
 
 interface TagsViewProps {

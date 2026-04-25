@@ -3,10 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Sparkles, Bold, Italic, Code, List, CheckSquare, Link,
   Heading1, Heading2, Tag, Wand2, FileText, Pin, PinOff,
-  Archive, Trash2, Palette
+  Archive, Trash2, Palette, Loader2
 } from 'lucide-react';
 import { useNotes } from '@/store/NotesContext';
-import type { Note, NoteColor } from '@/data/mockNotes';
+import { aiApi } from '@/lib/api';
+import { toast } from 'sonner';
+import type { Note, NoteColor } from '@/types';
 
 interface NoteEditorProps {
   note: Note;
@@ -41,6 +43,51 @@ export default function NoteEditor({ note, onClose }: NoteEditorProps) {
   const [content, setContent] = useState(note.content);
   const [showColors, setShowColors] = useState(false);
   const [tagInput, setTagInput] = useState('');
+  const [aiBusy, setAiBusy] = useState<null | 'enhance' | 'summarize' | 'autotag'>(null);
+
+  const handleEnhance = async () => {
+    if (!content.trim()) { toast.error('Nothing to enhance yet.'); return; }
+    setAiBusy('enhance');
+    try {
+      const { content: enhanced } = await aiApi.enhance({ content });
+      setContent(enhanced);
+      updateNote(note.id, { content: enhanced });
+      toast.success('Note enhanced');
+    } catch (e: any) {
+      toast.error(e.message || 'Enhance failed');
+    } finally { setAiBusy(null); }
+  };
+
+  const handleSummarize = async () => {
+    if (!content.trim()) { toast.error('Nothing to summarize yet.'); return; }
+    setAiBusy('summarize');
+    try {
+      const { summary } = await aiApi.summarize({ title, content });
+      const next = `${content}\n\n---\n📝 Summary: ${summary}`;
+      setContent(next);
+      updateNote(note.id, { content: next });
+      toast.success('Summary added');
+    } catch (e: any) {
+      toast.error(e.message || 'Summarize failed');
+    } finally { setAiBusy(null); }
+  };
+
+  const handleAutoTag = async () => {
+    if (!title.trim() && !content.trim()) { toast.error('Add some text first.'); return; }
+    setAiBusy('autotag');
+    try {
+      const existing = note.tags.map(t => t.name);
+      const { tags: suggested } = await aiApi.autoTag({ title, content, existingTags: existing });
+      const newTags = suggested
+        .filter(name => !existing.includes(name))
+        .map(name => ({ id: crypto.randomUUID(), name, isAI: true }));
+      if (newTags.length === 0) { toast.info('No new tags to add'); return; }
+      updateNote(note.id, { tags: [...note.tags, ...newTags] });
+      toast.success(`Added ${newTags.length} AI tag${newTags.length > 1 ? 's' : ''}`);
+    } catch (e: any) {
+      toast.error(e.message || 'Auto-tag failed');
+    } finally { setAiBusy(null); }
+  };
 
   const handleSave = () => {
     updateNote(note.id, { title: title.trim() || 'Untitled', content });
@@ -172,14 +219,17 @@ export default function NoteEditor({ note, onClose }: NoteEditorProps) {
             </AnimatePresence>
           </div>
 
-          <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors">
-            <Wand2 className="w-3.5 h-3.5" /> AI Enhance
+          <button onClick={handleEnhance} disabled={aiBusy !== null}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors disabled:opacity-50">
+            {aiBusy === 'enhance' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />} AI Enhance
           </button>
-          <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-secondary text-secondary-foreground text-xs font-medium hover:bg-secondary/80 transition-colors">
-            <FileText className="w-3.5 h-3.5" /> Summarize
+          <button onClick={handleSummarize} disabled={aiBusy !== null}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-secondary text-secondary-foreground text-xs font-medium hover:bg-secondary/80 transition-colors disabled:opacity-50">
+            {aiBusy === 'summarize' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />} Summarize
           </button>
-          <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-secondary text-secondary-foreground text-xs font-medium hover:bg-secondary/80 transition-colors">
-            <Sparkles className="w-3.5 h-3.5" /> Auto-Tag
+          <button onClick={handleAutoTag} disabled={aiBusy !== null}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-secondary text-secondary-foreground text-xs font-medium hover:bg-secondary/80 transition-colors disabled:opacity-50">
+            {aiBusy === 'autotag' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} Auto-Tag
           </button>
           <div className="flex-1" />
           <button onClick={handleSave}
